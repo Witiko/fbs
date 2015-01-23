@@ -3,7 +3,8 @@
 // @author         Witiko
 // @include        http*://www.facebook.com*
 // @require        http://mujweb.cz/richnovotny/math/math.js
-// @require        file:///home/witiko/Dokumenty/Programování/Javascript/Applications/Promluvte si s Markem/marek.js
+// @require        https://www.dropbox.com/s/51aj7vvttwxbnxy/marek.js?dl=1
+// @downloadURL    https://www.dropbox.com/s/5eet5uqk54xdwlc/fbs.user.js?dl=1
 // @grant          none
 // @version        1.00
 // ==/UserScript==
