@@ -6,7 +6,7 @@
 // @require        https://www.dropbox.com/s/51aj7vvttwxbnxy/marek.js?dl=1
 // @downloadURL    https://www.dropbox.com/s/5eet5uqk54xdwlc/fbs.user.js?dl=1
 // @grant          none
-// @version        1.00
+// @version        1.01
 // ==/UserScript==
 
 /*
@@ -20,10 +20,11 @@
   Commands:
     Responding to actions:
           (seen) - Wait until the previous message has been marked as seen
-       (replied) - Wait until the recipient has replied to you
+       (replied) - Wait until the recipient has replied to you (gets consumed, when the sender of the last message isn't you)
+        (posted) - Wait until the recipient has posted a message (gets consumed, when a new message is received)
         (typing) - Wait until the recipient has started typing to you
-       (typing!) - Wait until the recipient has started typing to you / replied
-           (any) - Wait until the recipient has started typing to you / replied / seen the previous message
+       (typing!) - Wait until the recipient has started typing to you / posted a message
+           (any) - Wait until the recipient has started typing to you / posted a message / seen the previous message
 
     Responding to states:
         (online) - Wait until the recipient has gone online
@@ -115,7 +116,7 @@
 
 (function() {
   if(window.top != window && window.top != window.unsafeWindow) return;
-  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(at .*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(beep\)|\(replied\)|\(!?(?:(?:on|off)line|mobile)\)/,
+  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(at .*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(beep\)|\(replied\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
       commands = new RegExp("(" + rawCommands.source + ")"),
       evals = /\(js\)(.*?)(?:\(js\)|$)/, rawCr = /\(;\)/,
       cr = new RegExp("(" + rawCr.source + ")"),
@@ -153,6 +154,7 @@
         this.noteOff          = function() {};
       })), MESSAGE_SELECTOR = 'textarea[name="message_body"]',
       PLACEHOLDER_CLASS = "DOMControl_placeholder",
+      REPLY_SELECTOR = "div[role=log] li.webMessengerMessageGroup",
       MY_NAME_SELECTOR = "._2dpb";
   
   log("fbs running");
@@ -398,7 +400,8 @@
     if(commands.test(batch[0]) &&
       !substitution.strong[0].test(batch[0])) { // It's a command
       var command = batch[0].replace(/\((.*?)\).*/, "$1");  
-      var prefix, suffix, namelocked = false;
+      var prefix, suffix, namelocked = false,
+          currReplyId = getLastReplyId();
       if(command) {
         prefix = command.replace(/\s.*/, "");
         suffix = command.replace(/.*?\s/, "");
@@ -406,16 +409,20 @@
       
       switch(prefix) { // Let's handle it
         
-        case "seen":    waitUntil(seen);    break;        
+        case "seen":    waitUntil(seen);    break;
         case "replied": waitUntil(replied); break;
         case "typing":  waitUntil(typing);  break;
 
+        case "posted": waitUntil(function() {
+          return replied() && changed();
+        }); break;
+
         case "typing!": waitUntil(function() {
-          return typing() || replied();
+          return typing() || (replied() && changed());
         }); break;
 
         case "any": waitUntil(function() {
-          return typing() || seen() || replied();
+          return typing() || seen() || (replied() && changed());
         }); break;
 
         case "online": waitUntil(function() {
@@ -479,10 +486,17 @@
     
     function replied() {
       return document.querySelector("div[role=log] li:last-child strong > a").href !== document.querySelector("a._2dpe").href;
+    } function changed() {
+      return getLastReplyId() !== currReplyId();
     } function typing() {
       return !!document.querySelector(".typing");
     } function seen() {
       return document.querySelector("._kv .seenByListener").classList.contains("seenByAll");
+    }
+
+    function getLastReplyId() {
+      var messages = document.querySelectorAll(REPLY_SELECTOR);
+      return messages[messages.length - 1].id;
     }
 
     function waitUntil(condition) {
@@ -528,7 +542,7 @@
   
   // User utility functions to be used inside of substitutions
   function getLastReply() {
-    var messages = document.querySelectorAll("div[role=log] .webMessengerMessageGroup");
+    var messages = document.querySelectorAll(REPLY_SELECTOR);
     var paragraphs = messages[messages.length - 1].querySelectorAll("p");
     return paragraphs[paragraphs.length - 1].textContent;
   }
