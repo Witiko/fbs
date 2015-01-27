@@ -25,6 +25,7 @@
           (seen) - Wait until the previous message has been marked as seen
        (replied) - Wait until the recipient has replied to you (gets consumed, when the sender of the last message isn't you)
         (posted) - Wait until the recipient has posted a message (gets consumed, when a new message is received)
+       (changed) - Wait until the last message in the chat has changed (be it because of you oor the recipient)
         (typing) - Wait until the recipient has started typing to you
        (typing!) - Wait until the recipient has started typing to you / posted a message
            (any) - Wait until the recipient has started typing to you / posted a message / seen the previous message
@@ -39,13 +40,15 @@
        
   User-defined events:
         (^EVENT)
-     or (^EVENT^)  - Emit an event named EVENT in the current window passing undefined as the message          (using custom events)
-    (^EVENT^DATA^) - Emit an event named EVENT in the current window passing eval("DATA") as the message       (using custom events)
+     or (^EVENT^)  - Emit an event named EVENT in the current window passing undefined as the message
+    (^EVENT^DATA^) - Emit an event named EVENT in the current window passing eval("DATA") as the message
        (^^EVENT)
-    or (^^EVENT^^) - Emit an event named EVENT in all open windows passing "undefined" as the message          (using custom events and localStorage events)
- (^^EVENT^^DATA^^) - Emit an event named EVENT in all open windows passing String(eval("DATA")) as the message (using custom events and localStorage events)
-        (:EVENT)   - Wait until the event named EVENT has occured in the current window and capture it  (edge-triggered -- waits until the event occurs)
-       (::EVENT)   - Wait until the event named EVENT has occured in the current window and capture it (level-triggered -- returns immediately, if the event has already been captured)
+    or (^^EVENT^^) - Emit an event named EVENT in all open windows passing "undefined" as the message
+ (^^EVENT^^DATA^^) - Emit an event named EVENT in all open windows passing String(eval("DATA")) as the message
+        (:EVENT)   - Wait until the event named EVENT has occured in the current window and capture it
+                     Edge-triggered -- waits until the event occurs
+       (::EVENT)   - Wait until the event named EVENT has occured in the current window and capture it
+                     Level-triggered -- returns immediately, if the event has already been captured)
  
     Miscellaneous:
              (v) - Redirect all following messages to console.log
@@ -88,14 +91,15 @@
                     
                    The following additional methods are available for execution, substitution and event sending:
  
-     getCurrName() - The whole name of the recipient
-       getMyName() - The first name of the sender
-         eventData - The data of the last captured event
-    getLastReply() - The last chat message
-          repeat() - Repeat the entire batch (poor man's loop)
-          editRc() - Pastes the entire fbsrc into the message box.
-                     Double-clicking the message box saves the new fbsrc.
-    log(arg1, ...) - Log the arguments into the console.
+       getCurrName() - The name of the recipients of the current chat window
+         getMyName() - The first name of the sender
+           eventData - The data of the last captured event
+      getLastReply() - The last chat message
+  getLastReplyName() - The name of the last chat message sender
+            repeat() - Repeat the entire batch (poor man's loop)
+            editRc() - Pastes the entire fbsrc into the message box.
+                       Double-clicking the message box saves the new fbsrc.
+      log(arg1, ...) - Log the arguments into the console.
  
   Name locking:
     Each input you execute is locked to the name of the current recipient.
@@ -130,7 +134,7 @@
  
 (function() {
   if(window.top != window && window.top != window.unsafeWindow) return;
-  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(\^\^[a-zA-Z0-9\-.]+?\^\^.+?\^\^\)|\(\^\^[a-zA-Z0-9\-.]+?(?:\^\^)?\)|\(\^[a-zA-Z0-9\-.]+?\^.+?\^\)|\(\^[a-zA-Z0-9\-.]+?(?:\^)?\)|\(::?[a-zA-Z0-9\-.]+?\)|\(at .*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(beep\)|\(replied\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
+  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(\^\^[a-zA-Z0-9\-.]+?\^\^.+?\^\^\)|\(\^\^[a-zA-Z0-9\-.]+?(?:\^\^)?\)|\(\^[a-zA-Z0-9\-.]+?\^.+?\^\)|\(\^[a-zA-Z0-9\-.]+?(?:\^)?\)|\(::?[a-zA-Z0-9\-.]+?\)|\(at .*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(beep\)|\(replied\)|\(changed\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
       events = {
         globalSend: {
           data:   /\(\^\^([a-zA-Z0-9\-.]+?)\^\^(.+?)\^\^\)/,
@@ -180,6 +184,7 @@
       })), MESSAGE_SELECTOR = 'textarea[name="message_body"]',
       PLACEHOLDER_CLASS = "DOMControl_placeholder",
       REPLY_SELECTOR = "div[role=log] li.webMessengerMessageGroup",
+      LAST_REPLY_NAME_SELECTOR = "div[role=log] li:last-child strong > a",
       MY_NAME_SELECTOR = "._2dpb", qualifiedName = "name.witiko.fbs.",
       pastEvents = {};
    
@@ -447,6 +452,7 @@
         case "seen":    waitUntil(seen);    break;
         case "replied": waitUntil(replied); break;
         case "typing":  waitUntil(typing);  break;
+        case "changed": waitUntil(changed); break;
  
         case "posted": waitUntil(function() {
           return replied() && changed();
@@ -556,9 +562,9 @@
         (silent?whisper:send)(substitute(batch[0], "weak").trim());
       }
     });
-     
+    
     function replied() {
-      return document.querySelector("div[role=log] li:last-child strong > a").href !== document.querySelector("a._2dpe").href;
+      return document.querySelector(LAST_REPLY_NAME_SELECTOR).href !== document.querySelector("a._2dpe").href;
     } function changed() {
       return getLastReplyId() !== currReplyId;
     } function typing() {
@@ -655,9 +661,15 @@
     var paragraphs = messages[messages.length - 1].querySelectorAll("p");
     return paragraphs[paragraphs.length - 1].textContent;
   }
+
+  function getLastReplyName() {
+    return document.querySelector(LAST_REPLY_NAME_SELECTOR).textContent;
+  }
    
   function getCurrName() {
-    return webMessengerHeaderName.getElementsByTagName("a")[0].textContent;
+    return [].map.call(webMessengerHeaderName.querySelectorAll("a[data-hovercard]"), function(el) {
+      return el.textContent;
+    }).join(", ");
   }
    
   function getMyName() {
