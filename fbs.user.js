@@ -1,13 +1,15 @@
 // ==UserScript==
 // @name           Facebook Batch Sender
 // @author         Witiko
-// @include        http*://www.facebook.com*
+// @include        http*://www.facebook.com/messages/*
+// @require        http://tiny.cc/jBus
+// @require        http://tiny.cc/dingjs
 // @require        http://mujweb.cz/richnovotny/math/math.js
 // @require        https://www.dropbox.com/s/51aj7vvttwxbnxy/marek.js?dl=1
 // @require        https://www.dropbox.com/s/mgelvou7twxfngy/grammar.js?dl=1
 // @downloadURL    https://www.dropbox.com/s/5eet5uqk54xdwlc/fbs.user.js?dl=1
 // @grant          none
-// @version        1.03
+// @version        1.04
 // ==/UserScript==
 
 /*
@@ -34,6 +36,16 @@
        (!mobile) - Wait until the recipient is no longer mobile
        (offline) - Wait until the recipient has gone offline
       (!offline) - Wait until the recipient is no longer offline
+      
+  User-defined events:
+        (^EVENT)
+     or (^EVENT^)  - Emit an event named EVENT in the current window passing undefined as the message          (using custom events)
+    (^EVENT^DATA^) - Emit an event named EVENT in the current window passing eval("DATA") as the message       (using custom events)
+       (^^EVENT)
+    or (^^EVENT^^) - Emit an event named EVENT in all open windows passing "undefined" as the message          (using custom events and localStorage events)
+ (^^EVENT^^DATA^^) - Emit an event named EVENT in all open windows passing String(eval("DATA")) as the message (using custom events and localStorage events)
+        (:EVENT)   - Wait until the event named EVENT has occured in the current window and capture it  (edge-triggered -- waits until the event occurs)
+       (::EVENT)   - Wait until the event named EVENT has occured in the current window and capture it (level-triggered -- returns immediately, if the event has already been captured)
 
     Miscellaneous:
              (v) - Redirect all following messages to console.log
@@ -74,10 +86,11 @@
                      (``1 + 2``s)You've got five seconds to tell me where I am and three have just passed.
                      This will get posted.(``condition ? "^" : "v"``)And this will conditionally not get posted.
                    
-                   The following additional methods are available for execution and substitution:
+                   The following additional methods are available for execution, substitution and event sending:
 
      getCurrName() - The whole name of the recipient
        getMyName() - The first name of the sender
+         eventData - The data of the last captured event
     getLastReply() - The last chat message
           repeat() - Repeat the entire batch (poor man's loop)
           editRc() - Pastes the entire fbsrc into the message box.
@@ -117,8 +130,19 @@
 
 (function() {
   if(window.top != window && window.top != window.unsafeWindow) return;
-  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(at .*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(beep\)|\(replied\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
-      commands = new RegExp("(" + rawCommands.source + ")"),
+  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(\^\^[a-zA-Z0-9\-.]+?\^\^.+?\^\^\)|\(\^\^[a-zA-Z0-9\-.]+?(?:\^\^)?\)|\(\^[a-zA-Z0-9\-.]+?\^.+?\^\)|\(\^[a-zA-Z0-9\-.]+?(?:\^)?\)|\(::?[a-zA-Z0-9\-.]+?\)|\(at .*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(beep\)|\(replied\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
+      events = {
+        globalSend: {
+          data:   /\(\^\^([a-zA-Z0-9\-.]+?)\^\^(.+?)\^\^\)/,
+          nodata: /\(\^\^([a-zA-Z0-9\-.]+?)(?:\^\^)?\)/,
+        }, localSend: {
+          data:   /\(\^([a-zA-Z0-9\-.]+?)\^(.+?)\^\)/,
+          nodata: /\(\^([a-zA-Z0-9\-.]+?)(?:\^)?\)/
+        }, receive: {
+          level:  /\(::([a-zA-Z0-9\-.]+?)\)/,
+          edge:    /\(:([a-zA-Z0-9\-.]+?)\)/
+        }
+      }, commands = new RegExp("(" + rawCommands.source + ")"),
       evals = /\(js\)(.*?)(?:\(js\)|$)/, rawCr = /\(;\)/,
       cr = new RegExp("(" + rawCr.source + ")"),
       substitution = {
@@ -156,7 +180,8 @@
       })), MESSAGE_SELECTOR = 'textarea[name="message_body"]',
       PLACEHOLDER_CLASS = "DOMControl_placeholder",
       REPLY_SELECTOR = "div[role=log] li.webMessengerMessageGroup",
-      MY_NAME_SELECTOR = "._2dpb";
+      MY_NAME_SELECTOR = "._2dpb", qualifiedName = "name.witiko.fbs.",
+      pastEvents = {};
   
   log("fbs running");
 
@@ -276,10 +301,19 @@
                              : text.split(comments).map(function(text) {
           return comments.test(text) ? "<span style=\"background-color: " + colors.comments + "\">" + text + "</span>"
                                      : text.split(tokens).map(function(text) {
-            var color = substitution.strong[1].test(text) ? colors.substitution.strong
-                                                          : colors[evals.test(text) ? "js" : "commands"];
-            return tokens.test(text) ? "<span style=\"background-color: " + color + "\">" + text + "</span>"
-                                          : text.split(substitution.weak[0]).map(function(text) {
+            var coloredText;
+            if(events.globalSend.data.test(text) || events.localSend.data.test(text)) {
+              var spikes = events.globalSend.data.test(text) ? "^^" : "^",
+                  match  = events.globalSend.data.test(text) ? text.match(events.globalSend.data) : text.match(events.localSend.data);
+              coloredText = "<span style=\"background-color: " + colors.commands + "\">(" + spikes + match[1] + spikes + "</span>" +
+                      "<span style=\"background-color: " + colors.substitution.weak + "\">" + match[2] + "</span>" +
+                      "<span style=\"background-color: " + colors.commands + "\">" + spikes + ")";
+            } else {
+              var color = substitution.strong[1].test(text) ? colors.substitution.strong
+                                                            : colors[evals.test(text) ? "js" : "commands"];
+              coloredText = "<span style=\"background-color: " + color + "\">" + text + "</span>";
+            }
+            return tokens.test(text) ? coloredText : text.split(substitution.weak[0]).map(function(text) {
               return substitution.weak[0].test(text) ? 
                 "<span style=\"background-color: " + colors.substitution.weak + "\">" + text + "</span>" : text;
             }).join("");
@@ -396,7 +430,7 @@
     el.value = "";
   }
 
-  function execute(batch, silent, name, context) {
+  function execute(batch, silent, name, context, eventData) {
     if(!batch.length) return;
     if(commands.test(batch[0]) &&
       !substitution.strong[0].test(batch[0])) { // It's a command
@@ -472,7 +506,45 @@
           }
         }); break;
 
-        default: setTimeout(perform, parseTime(command));
+        default:
+          // An outgoing global event with data
+          if(events.globalSend.data.test(batch[0])) (function(matches) {
+            globalSend(matches[1], evaluate(matches[2]));
+            next();
+          })( batch[0].match(events.globalSend.data) );
+          
+          // An outgoing global event without data
+          else if(events.globalSend.nodata.test(batch[0])) (function(matches) {
+            globalSend(matches[1], "undefined");
+            next();
+          })( batch[0].match(events.globalSend.nodata) );
+            
+          // An outgoing local event with data
+          if(events.localSend.data.test(batch[0])) (function(matches) {
+            localSend(matches[1], evaluate(matches[2]));
+            next();
+          })( batch[0].match(events.localSend.data) );
+          
+          // An outgoing local event without data
+          else if(events.localSend.nodata.test(batch[0])) (function(matches) {
+            localSend(matches[1], "undefined");
+            next();
+          })( batch[0].match(events.localSend.nodata) );
+            
+          // A level-triggered incoming event
+          else if(events.receive.level.test(batch[0])) (function(matches) {
+            if(matches[1] in pastEvents) {
+              eventData = pastEvents[matches[1]];
+              next();
+            } else waitFor(matches[1]);
+          })( batch[0].match(events.receive.level) );
+            
+          // An edge-triggered incoming event
+          else if(events.receive.edge.test(batch[0]))
+            waitFor(batch[0].match(events.receive.edge)[1]);
+          
+          // A timeout command
+          else setTimeout(perform, parseTime(command));
       }
     } else perform(function() {
       // No command
@@ -524,20 +596,55 @@
         }
       }, 100);
     } function next() {
-      execute(batch.slice(1), silent, name, context);
+      execute(batch.slice(1), silent, name, context, eventData);
     } function substitute(text, type) {
       return text.split(substitution[type][0]).map(function(segment) {
         return substitution[type][0].test(segment) ? (function() {
-          with(context) {
-            try {
-              var value = eval(substitution[type][1].exec(segment)[2]);
-              return value === undefined ? "" : value;
-            } catch(e) {
-              log(e);
-            }
-          }
+          var value = evaluate(substitution[type][1].exec(segment)[2]);
+          return value === undefined ? "" : value;
         })() : segment;
       }).join("");
+    } function evaluate(str) {
+      with(context) {
+        try {
+          return eval(str);
+        } catch(e) {
+          log(e);
+        }
+      }
+    } function globalSend(name, data) {
+      data = String(data);
+      ding.send(qualifiedName + name, data);
+      localSend(name, data);
+    } function localSend(name, data) {
+      new JBus.Node().send({
+        to: {
+          group: qualifiedName + name
+        }, data: data
+      });
+    } function waitFor(name) {
+      
+      // Global listener
+      var obj = {}, done = false;
+      obj[qualifiedName + name] = callback;
+      ding.listen(obj);
+      
+      // Local listener
+      var node = new JBus.Node({
+        group: qualifiedName + name
+      }); node.listen({
+        multicast: function(msg) {
+          node.destroy();
+          callback(msg.data.payload);
+        }
+      });
+      
+      function callback(data) {
+        if(done) return;
+        done = true;
+        eventData = pastEvents[name] = data;
+        next();
+      }
     }
   }
   
