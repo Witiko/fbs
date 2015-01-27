@@ -9,7 +9,7 @@
 // @require        https://www.dropbox.com/s/mgelvou7twxfngy/grammar.js?dl=1
 // @downloadURL    https://www.dropbox.com/s/5eet5uqk54xdwlc/fbs.user.js?dl=1
 // @grant          none
-// @version        1.05
+// @version        1.06
 // ==/UserScript==
  
 /*
@@ -155,7 +155,7 @@
         strong: [ /(``.*?``)/, /(``(.*?)``)/, /``.*?``/ ]
       }, rawTokens = new RegExp(substitution.strong[2].source + "|" + rawCommands.source),
       tokens = new RegExp("(" + rawTokens.source + ")"),
-      comments = /(\(\/\/.*?(?:\/\/\)|$)|\(\/.*?\))/,
+      comments = /(\(\/\/.*?(?:\/\/\)|$)|\(\/.*?\))/g,
       hms = /(\d{0,2})(?::(\d{0,2})(?::(\d{0,2}))?)?/,
       units = /(Y|M|d|h|ms|m|s)/,
       unitValues = {
@@ -240,8 +240,7 @@
       }
     }; input.onkeydown = function(e) {
       if(e.keyCode === 13 && !e.shiftKey) return false;
-    };
-    input.onkeyup = function(e) {
+    }; input.onkeyup = function(e) {
       if(e.keyCode === 13 && !e.shiftKey) { // Process the queue
         parseAndExecute(input.textContent, getCurrName());
         localStorage[localStorage.curr = ++localStorage.max] =
