@@ -9,7 +9,7 @@
 // @require        https://www.dropbox.com/s/mgelvou7twxfngy/grammar.js?dl=1
 // @downloadURL    https://www.dropbox.com/s/5eet5uqk54xdwlc/fbs.user.js?dl=1
 // @grant          none
-// @version        1.06
+// @version        1.07
 // ==/UserScript==
  
 /*
@@ -247,6 +247,7 @@
         input.innerHTML = highlighter.innerText = DEFAULT_TEXT;
       } else {
         if(e.keyCode === 38) { // Up
+          if(getCaretPosition(input) > 0) return;
           if(localStorage.curr > 0) {
             input.innerHTML = localStorage[--localStorage.curr];
             placeCaretAtEnd(input);
@@ -257,6 +258,7 @@
             }
           }
         } else if(e.keyCode == 40) { // Down
+          if(getCaretPosition(input) < getContentLength(input)) return;
           if(localStorage.curr < localStorage.max || localStorage[localStorage.curr] !== DEFAULT_TEXT) {
             if(++localStorage.curr > localStorage.max) {
               localStorage[localStorage.curr] = DEFAULT_TEXT;
@@ -285,6 +287,38 @@
         textRange.collapse(false);
         textRange.select();
       }
+    }
+    
+    function getCaretPosition(node) {
+        var treeWalker = document.createTreeWalker(
+            node, NodeFilter.SHOW_TEXT,
+            function(node) {
+                var nodeRange = document.createRange();
+                nodeRange.selectNodeContents(node);
+                return nodeRange.compareBoundaryPoints(Range.END_TO_END, range) < 1 ?
+                    NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+            }, false
+        ), charCount = 0,
+           range = getSelection().getRangeAt(0);
+        while (treeWalker.nextNode()) {
+            charCount += treeWalker.currentNode.length;
+        } if (range.startContainer.nodeType == 3) {
+            charCount += range.startOffset;
+        } return charCount;
+    }
+    
+    function getContentLength(node) {
+      var treeWalker = document.createTreeWalker(
+        node, NodeFilter.SHOW_TEXT,
+        function(node) {
+            return NodeFilter.FILTER_ACCEPT;
+        }, false
+      );
+
+      var charCount = 0;
+      while (treeWalker.nextNode()) {
+          charCount += treeWalker.currentNode.length;
+      } return charCount;
     }
      
     function parseAndExecute(string, name) {
@@ -697,3 +731,4 @@
   }
    
 })();
+
