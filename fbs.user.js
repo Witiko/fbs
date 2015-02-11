@@ -9,7 +9,7 @@
 // @require        https://www.dropbox.com/s/mgelvou7twxfngy/grammar.js?dl=1
 // @downloadURL    https://www.dropbox.com/s/5eet5uqk54xdwlc/fbs.user.js?dl=1
 // @grant          none
-// @version        1.07
+// @version        1.08
 // ==/UserScript==
  
 /*
@@ -17,12 +17,15 @@
   Input: <Message1/Command1><Message2/Command2> ... <MessageN/CommandN>(;)
          <Message1/Command1><Message2/Command2> ... <MessageN/CommandN>(;)
          <Message1/Command1><Message2/Command2> ... <MessageN/CommandN>
-          
-         Each of the sections delimited by (;) is processed in parallel to the others.
+         
+         The entire input is called a superbatch.
+         Each of the sections of a superbatch delimited by (;) is processed in parallel to the others and is called a batch.
+         Each batch is composed of messages, commands, comments and substitutions, whose meaning is described below.
  
   Commands:
     Responding to actions:
           (seen) - Wait until the previous message has been marked as seen
+         (seen!) - Wait until the previous message has been marked as seen by all chat users
        (replied) - Wait until the recipient has replied to you (gets consumed, when the sender of the last message isn't you)
         (posted) - Wait until the recipient has posted a message (gets consumed, when a new message is received)
        (changed) - Wait until the last message in the chat has changed (be it because of you oor the recipient)
@@ -89,17 +92,20 @@
                      (``1 + 2``s)You've got five seconds to tell me where I am and three have just passed.
                      This will get posted.(``condition ? "^" : "v"``)And this will conditionally not get posted.
                     
-                   The following additional methods are available for execution, substitution and event sending:
+                   The following additional methods and variables are available for execution, substitution and event sending:
  
-       getCurrName() - The name of the recipients of the current chat window
+       getCurrName() - The name of the current chat window
          getMyName() - The first name of the sender
            eventData - The data of the last captured event
       getLastReply() - The last chat message
   getLastReplyName() - The name of the last chat message sender
             repeat() - Repeat the entire batch (poor man's loop)
-            editRc() - Pastes the entire fbsrc into the message box.
-                       Double-clicking the message box saves the new fbsrc.
-      log(arg1, ...) - Log the arguments into the console.
+            editRc() - Paste the entire fbsrc into the message box
+                       Double-clicking the message box saves the new fbsrc
+      log(arg1, ...) - Log the arguments into the console
+                 $$$ - A non-persistent window-local hash table
+                  $$ - A non-persistent superbatch-local hash table
+                   $ - A non-persistent batch-local hash table
  
   Name locking:
     Each input you execute is locked to the name of the current recipient.
@@ -113,28 +119,31 @@
   Tokenization:
     The input tokenization is performed in three steps (see function tokenize):
      
-      1) In the first step, the input is split into sections delimited by (cr). For each section:
-        a) In the first step, the section is split into comments and non-comments and comments are discarded.
-        b) In the second step non-comments are split into strong substitution / commands and messages.
-        c) In the third step, adjoining strong substitution and messages are concatenated into compound messages.
+      1) In the first step, the superbatch is split into batches delimited by (;). For each batch:
+        a) Split the batch into comments and non-comments. Discard the comments.
+        b) Split non-comments into strong substitution / commands and messages.
+        c) Concatenate adjoining strong substitutions and messages into compound messages.
+        d) Execute the resulting string of messages and commands.
      
-  Execution:
-    The input string is tokenized and sequentially processed (see function execute):
-     
+  Execution:     
       1) If the token is a command, the command is performed.
       2) If the token is a message, then:
         a) If the message contains a strong substitution, the substitution is performed, the resulting string
-           is retokenized, the tokens are put in place of the original message and then executed.
+           is retokenized as if it were a batch, the tokens are put in place of the original message and then executed.
+           
+           Note: Since the result of the strong substitution is retokenized as if it were a batch (Tokenization > 1a),
+                 the (;) separator has no meaning and will be interpreted as text.
+           
         b) Otherwise:
            i) If the message contains a weak substitution, the substitution is performed.
-          ii) The resulting string is sent to the current recipient / logged.
+          ii) The resulting string is sent to the current recipient or logged to the console depending on the mode.
          
  
 */
  
 (function() {
   if(window.top != window && window.top != window.unsafeWindow) return;
-  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(\^\^[a-zA-Z0-9\-.]+?\^\^.+?\^\^\)|\(\^\^[a-zA-Z0-9\-.]+?(?:\^\^)?\)|\(\^[a-zA-Z0-9\-.]+?\^.+?\^\)|\(\^[a-zA-Z0-9\-.]+?(?:\^)?\)|\(::?[a-zA-Z0-9\-.]+?\)|\(at .*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(beep\)|\(replied\)|\(changed\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
+  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(\^\^[a-zA-Z0-9\-.]+?\^\^.+?\^\^\)|\(\^\^[a-zA-Z0-9\-.]+?(?:\^\^)?\)|\(\^[a-zA-Z0-9\-.]+?\^.+?\^\)|\(\^[a-zA-Z0-9\-.]+?(?:\^)?\)|\(::?[a-zA-Z0-9\-.]+?\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen!?\)|\(typing!?\)|\(any\)|\(beep\)|\(replied\)|\(changed\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
       events = {
         globalSend: {
           data:   /\(\^\^([a-zA-Z0-9\-.]+?)\^\^(.+?)\^\^\)/,
@@ -211,17 +220,17 @@
     with(input) {
       contentEditable = true;
       with(style) {
-        display = "none";
-        fontSize = "16px";
-        width = "100%";
-        position = "fixed";
-        bottom = "0px";
-        left = "0px";
-        outline = "none";
+        display   = "none";
+        fontSize  = "16px";
+        width     = "100%";
+        position  = "fixed";
+        bottom    = "0px";
+        left      = "0px";
+        outline   = "none";
         backgroundColor = "rgba(255, 255, 255, .75)";
-        margin = "0px";
-        padding = "5px";
-        zIndex = "999";
+        margin    = "0px";
+        padding   = "5px";
+        zIndex    = "999";
         borderTop = "1px solid rgba(0, 0, 0, .4)";
       }
     } with(highlighter = input.cloneNode(false)) {
@@ -321,13 +330,18 @@
       } return charCount;
     }
      
+    var $$$ = { /* The global hash table */ };
     function parseAndExecute(string, name) {
+      var $$ = { /* The superbatch-local hash table */ };
       string.split(rawCr).forEach(function(input) {
+        var $ = { /* The batch-local hash table */ };
         var batch = tokenize(input);
         (function exec() {   // v Name locking
           execute(batch, false, name, {
             // Context data / methods available for the user in js substitution / execution
-            repeat: exec
+            repeat: exec,
+            // The hash tables
+            $$$: $$$, $$: $$, $: $
           });
         })();
       });
@@ -483,6 +497,7 @@
       switch(prefix) { // Let's handle it
          
         case "seen":    waitUntil(seen);    break;
+        case "seen!":   waitUntil(seenAll); break;
         case "replied": waitUntil(replied); break;
         case "typing":  waitUntil(typing);  break;
         case "changed": waitUntil(changed); break;
@@ -597,12 +612,14 @@
     });
     
     function replied() {
-      return document.querySelector(LAST_REPLY_NAME_SELECTOR).href !== document.querySelector("a._2dpe").href;
+      return !document.querySelector("._kv .seenByListener").classList.contains("repliedLast");
     } function changed() {
       return getLastReplyId() !== currReplyId;
     } function typing() {
-      return !!document.querySelector(".typing");
+      return !!document.querySelector(".mbs > .typing");
     } function seen() {
+      return !!document.querySelector(".mbs > .seen");
+    } function seenAll() {
       return document.querySelector("._kv .seenByListener").classList.contains("seenByAll");
     }
  
@@ -700,9 +717,7 @@
   }
    
   function getCurrName() {
-    return [].map.call(webMessengerHeaderName.querySelectorAll("a[data-hovercard]"), function(el) {
-      return el.textContent;
-    }).join(", ");
+    return document.querySelector("#webMessengerHeaderName > span > span > :nth-child(1)").textContent;
   }
    
   function getMyName() {
@@ -731,4 +746,3 @@
   }
    
 })();
-
