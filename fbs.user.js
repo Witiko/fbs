@@ -731,6 +731,7 @@
   }
   
   function require(url) {
+    var handle = url.replace(/.*\/([^#?]*).*/, "$1");
     GM_xmlhttpRequest({synchronous: true, method: "GET", url: url, onload: function(http) {
       if(http.status == 200) {
         scriptLog("Loaded and executed");
@@ -748,9 +749,9 @@
     }});
     
     function scriptLog() {
-      log.apply(this, ["Script", url, ":"].concat([].slice.call(arguments, 0)));
+      log.apply(this, ["Script", handle, ":"].concat([].slice.call(arguments, 0)));
     } function scriptErr() {
-      err.apply(this, ["Script", url, ":"].concat([].slice.call(arguments, 0)));
+      err.apply(this, ["Script", handle, ":"].concat([].slice.call(arguments, 0)));
     }
   }
    
