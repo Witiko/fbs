@@ -4,12 +4,9 @@
 // @include        http*://www.facebook.com/messages/*
 // @require        http://tiny.cc/jBus
 // @require        http://tiny.cc/dingjs
-// @require        http://mujweb.cz/richnovotny/math/math.js
-// @require        https://www.dropbox.com/s/51aj7vvttwxbnxy/marek.js?dl=1
-// @require        https://www.dropbox.com/s/mgelvou7twxfngy/grammar.js?dl=1
 // @downloadURL    https://www.dropbox.com/s/5eet5uqk54xdwlc/fbs.user.js?dl=1
-// @grant          none
-// @version        1.08
+// @grant          GM_xmlhttpRequest
+// @version        1.09
 // ==/UserScript==
  
 /*
@@ -94,6 +91,9 @@
                     
                    The following additional methods and variables are available for execution, substitution and event sending:
  
+        require(url) - Synchronously loads and executes a JavaScript script at the given url.
+                       A function Export(name, value) is made available for the script to export functions and data.
+                       
        getCurrName() - The name of the current chat window
          getMyName() - The first name of the sender
            eventData - The data of the last captured event
@@ -102,7 +102,9 @@
             repeat() - Repeat the entire batch (poor man's loop)
             editRc() - Paste the entire fbsrc into the message box
                        Double-clicking the message box saves the new fbsrc
-      log(arg1, ...) - Log the arguments into the console
+      log(arg1, ...) - Log the arguments into the console (a generic message)
+     warn(arg1, ...) - Log the arguments into the console (a warning)
+      err(arg1, ...) - Log the arguments into the console (an error)
                  $$$ - A non-persistent window-local hash table
                   $$ - A non-persistent superbatch-local hash table
                    $ - A non-persistent batch-local hash table
@@ -140,8 +142,8 @@
          
  
 */
- 
-(function() {
+
+(function(global) {
   if(window.top != window && window.top != window.unsafeWindow) return;
   var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(\^\^[a-zA-Z0-9\-.]+?\^\^.+?\^\^\)|\(\^\^[a-zA-Z0-9\-.]+?(?:\^\^)?\)|\(\^[a-zA-Z0-9\-.]+?\^.+?\^\)|\(\^[a-zA-Z0-9\-.]+?(?:\^)?\)|\(::?[a-zA-Z0-9\-.]+?\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen!?\)|\(typing!?\)|\(any\)|\(beep\)|\(replied\)|\(changed\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
       events = {
@@ -202,9 +204,13 @@
   (function() {
     // Executing fbsrc
     onload = function() {
-      if("fbsrc" in localStorage) {
-        parseAndExecute(localStorage["fbsrc"]);
-      } log("fbsrc executed");
+      try {
+        if("fbsrc" in localStorage) {
+          parseAndExecute(localStorage["fbsrc"]);
+        } log("fbsrc executed");
+      } catch(e) {
+        err("Executing the fbsrc caused an exception to be thrown:", e);
+      }
     };
  
     // Building a GUI
@@ -489,6 +495,7 @@
       var command = batch[0].replace(/\((.*?)\).*/, "$1"); 
       var prefix, suffix, namelocked = false,
           currReplyId = getLastReplyId();
+      
       if(command) {
         prefix = command.replace(/\s.*/, "");
         suffix = command.replace(/.*?\s/, "");
@@ -547,17 +554,11 @@
         case "at":
           var at = Date.parse(suffix) || parseHMS(suffix);
           if (isNaN(at)) {
-            log(suffix, "specifies a malformed date.");
+            err(suffix, "specifies a malformed date.");
           } else setTimeout(perform, at - now()); break;
            
         case "js": perform(function() {
-          with(context) {
-            try {
-              eval(evals.exec(batch[0])[1]);
-            } catch(e) {
-              log(e);
-            }
-          }
+          evaluate(evals.exec(batch[0])[1]);
         }); break;
  
         default:
@@ -626,7 +627,12 @@
     function getLastReplyId() {
       var messages = document.querySelectorAll(REPLY_SELECTOR),
           el = messages[messages.length - 1];
-      return el.id + "#" + el.querySelectorAll("p").length;
+      if(el)
+        return el.id + "#" + el.querySelectorAll("p").length;
+      else {
+        warn("getLastReplyId(): Couldn't retrieve the last reply id, returning a random string instead");
+        return Math.random();
+      }
     }
  
     function waitUntil(condition) {
@@ -666,7 +672,7 @@
         try {
           return eval(str);
         } catch(e) {
-          log(e);
+          err("The following exception has been caught while executing the expression", str, ":", e);
         }
       }
     } function globalSend(name, data) {
@@ -723,12 +729,36 @@
   function getMyName() {
     return document.querySelector(MY_NAME_SELECTOR).textContent;
   }
+  
+  function require(url) {
+    GM_xmlhttpRequest({synchronous: true, method: "GET", url: url, onload: function(http) {
+      if(http.status == 200) {
+        scriptLog("Loaded and executed");
+        try {
+          var Export = function(name, val) {
+            scriptLog("The member", name, "has been made global");
+            global[name] = val;
+          }; eval(http.responseText || "");
+        } catch(e) {
+          scriptErr("An exception has been caught:", e);
+        }
+      } else {
+        scriptErr("An error HTTP status receieved:", http.status, " - ", http.statusText, ").");
+      }
+    }});
+    
+    function scriptLog() {
+      log.apply(this, ["Script", url, ":"].concat([].slice.call(arguments, 0)));
+    } function scriptErr() {
+      err.apply(this, ["Script", url, ":"].concat([].slice.call(arguments, 0)));
+    }
+  }
    
   function editRc() {
     log("editing fbsrc");
-    setMessage(localStorage.fbsrc);
+    setMessage(localStorage.fbsrc || "");
     var checkbox = Array.prototype.filter.call(document.getElementsByTagName("span"), function(el) {
-      return /Odeslat stisknutím klávesy enter/.test(el.textContent);
+      return /Odeslat stisknutím klávesy Enter/i.test(el.textContent);
     })[0].parentElement; checkbox.click(); checkbox.click();
     var checked = checkbox.getAttribute("aria-checked") == "true";
     if (checked) checkbox.click();
@@ -745,4 +775,12 @@
     console.log.apply(console, [new Date].concat([].slice.call(arguments, 0)));
   }
    
-})();
+  function warn() {
+    log.apply(this, ["WARNING:"].concat([].slice.call(arguments, 0)));
+  }
+   
+  function err() {
+    log.apply(this, ["ERROR:"].concat([].slice.call(arguments, 0)));
+  }
+   
+})(this);
