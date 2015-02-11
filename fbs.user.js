@@ -115,7 +115,7 @@
     Fbsrc inputs are exempt from this rule.
  
   Fbsrc:
-    You can store a sequence of inputs delimited by (cr) in localStorage.fbsrc.
+    You can store a sequence of inputs delimited by (;) in localStorage.fbsrc.
     These inputs will be automatically executed (without name locking) each time the userscript is loaded.
    
   Tokenization:
