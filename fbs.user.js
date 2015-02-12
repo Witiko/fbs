@@ -115,12 +115,13 @@
        warnings (true) - Controls, whether the warn() function prints any messages into the console
      tokenizer (false) - Logs the activity of the tokenizer into the console
       namelock (false) - Logs information regarding the name lock into the console
-        require (true) - Logs information regarding the loading and execution of scripts using the require() function into the console
+       require (false) - Logs information regarding the loading and execution of scripts using the require() function into the console
          batch (false) - Logs information regarding the state of the executed batches into the console
  
   Name locking:
     Each input you execute is locked to the name of the current recipient.
     Input execution will be paused each time you switch to another user.
+    Fbsrc and fbs scripts loaded via the require() function are exempt from this rule.
  
   Fbsrc:
     You can store a sequence of inputs delimited by (;) in localStorage.fbsrc.
@@ -230,7 +231,7 @@
     onload = function() {
       try {
         if("fbsrc" in localStorage) {
-          parseAndExecute(localStorage["fbsrc"]);
+          parseAndExecute(localStorage["fbsrc"], true);
         } log("fbsrc executed");
       } catch(e) {
         err("Executing the fbsrc caused an exception to be thrown:", e);
@@ -439,13 +440,15 @@
   }
      
   var $$$ = { /* The global hash table */ };
-  function parseAndExecute(string) {
+  function parseAndExecute(string, preventNamelock) {
     var $$ = { /* The superbatch-local hash table */ };
     string.replace(/\n/g, "").split(rawCr).forEach(function(input) {
       var $ = { /* The batch-local hash table */ };
       var batch = tokenize(input);
       (function exec() {   // v Name locking
-        execute(batch, false, {
+        if(preventNamelock && debug.namelock)
+          log("The batch", batch, "has been executed without namelocking");
+        execute(batch, preventNamelock, false, {
           // Context data / methods available for the user in js substitution / execution
           repeat: exec,
           // The hash tables
@@ -518,13 +521,13 @@
     el.value = "";
   }
  
-  function execute(batch, silent, context, eventData) {
+  function execute(batch, preventNamelock, silent, context, eventData) {
     if(!batch.length) return;
+    var name = getCurrName();
     if(commands.test(batch[0]) &&
       !substitution.strong[0].test(batch[0])) { // It's a command
       var command = batch[0].replace(/\((.*?)\).*/, "$1"); 
       var prefix, suffix, namelocked = false,
-          name = getCurrName(),
           currReplyId = getLastReplyId();
       
       if(command) {
@@ -670,7 +673,7 @@
     } function doWhen(condition, action) {
       var interval = setInterval(function() {
         // Checking the namelock
-        if(name && getCurrName() !== name) {
+        if(!preventNamelock && getCurrName() !== name) {
           if(!namelocked) {
             if(debug.namelock)
               log("The batch ", batch, " for ", name, " was name-locked.");
@@ -691,7 +694,7 @@
     } function next() {
       if(debug.batch)
         log("Batch:", batch, "->", batch.slice(1));
-      execute(batch.slice(1), silent, context, eventData);
+      execute(batch.slice(1), preventNamelock, silent, context, eventData);
     } function substitute(text, type) {
       return text.split(substitution[type][0]).map(function(segment) {
         return substitution[type][0].test(segment) ? (function() {
@@ -751,13 +754,27 @@
   }
 
   function getLastReplyName() {
-    return document.querySelector(LAST_REPLY_NAME_SELECTOR).textContent;
+    var el = document.querySelector(LAST_REPLY_NAME_SELECTOR);
+    if(el)
+      return el.textContent;
+    else {
+      warn("getLastReplyName(): Couldn't retrieve the last reply name, returning a random string instead");
+      return Math.random();
+    }
   }
-   
+
   function getCurrName() {
-    return document.querySelector("#webMessengerHeaderName > span > span > :nth-child(1)").textContent;
+    var el = document.getElementById("webMessengerHeaderName");
+    if(el)
+      return [].map.call(el.querySelectorAll("[data-reactid]>[data-reactid], a"), function(el) {
+        return el.textContent;
+      }).join(", ") + (document.getElementById("js_3t") ? " a další ..." : "");
+    else {
+      warn("getCurrName(): Couldn't retrieve the current name, returning a random string instead");
+      return Math.random();
+    }
   }
-   
+
   function getMyName() {
     return document.querySelector(MY_NAME_SELECTOR).textContent;
   }
@@ -780,7 +797,7 @@
                   global[name] = val;
                 }; eval(script);
               } else {
-                parseAndExecute(script);
+                parseAndExecute(script, true);
               }
             } catch(e) {
               scriptErr("An exception has been caught:", e);
