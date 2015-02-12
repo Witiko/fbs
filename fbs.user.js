@@ -6,7 +6,7 @@
 // @require        http://tiny.cc/dingjs
 // @downloadURL    https://www.dropbox.com/s/5eet5uqk54xdwlc/fbs.user.js?dl=1
 // @grant          GM_xmlhttpRequest
-// @version        1.09
+// @version        1.10
 // ==/UserScript==
  
 /*
@@ -22,7 +22,6 @@
   Commands:
     Responding to actions:
           (seen) - Wait until the previous message has been marked as seen
-         (seen!) - Wait until the previous message has been marked as seen by all chat users
        (replied) - Wait until the recipient has replied to you (gets consumed, when the sender of the last message isn't you)
         (posted) - Wait until the recipient has posted a message (gets consumed, when a new message is received)
        (changed) - Wait until the last message in the chat has changed (be it because of you oor the recipient)
@@ -63,13 +62,13 @@
  
    (<#1><unit1> <#2><unit2> ...
     <#N><unitN>) - Wait \sum_{1\leq I\leq N}#i <unitI>, where <unitI>\in:
-               Y - Years
-               M - Months
-               d - Days
-               h - Hours
-               m - Minutes
-               s - Seconds
-              ms - Milliseconds
+                 Y - Years
+                 M - Months
+                 d - Days
+                 h - Hours
+                 m - Minutes
+                 s - Seconds
+                ms - Milliseconds
     
     (js)...(js)
     or (js)...   - Execute the enclosed javascript code
@@ -91,8 +90,11 @@
                     
                    The following additional methods and variables are available for execution, substitution and event sending:
  
-        require(url) - Synchronously loads and executes a JavaScript script at the given url.
-                       A function Export(name, value) is made available for the script to export functions and data.
+  require(lang, url) - Synchronously loads and executes a script at the given url. The language of the script is specified
+                       by the lang parameter, which can be either "js" (JavaScript) or "fbs" (Facebook Batch Sender). If no
+                       language is specified, it will be guessed from the suffix of the specified file. In case of a
+                       JavaScript script, a function Export(name, value) is made available for the script to export functions
+                       and data.
                        
        getCurrName() - The name of the current chat window
          getMyName() - The first name of the sender
@@ -108,11 +110,17 @@
                  $$$ - A non-persistent window-local hash table
                   $$ - A non-persistent superbatch-local hash table
                    $ - A non-persistent batch-local hash table
+                   
+               debug - The debug object contains the following values:
+       warnings (true) - Controls, whether the warn() function prints any messages into the console
+     tokenizer (false) - Logs the activity of the tokenizer into the console
+      namelock (false) - Logs information regarding the name lock into the console
+        require (true) - Logs information regarding the loading and execution of scripts using the require() function into the console
+         batch (false) - Logs information regarding the state of the executed batches into the console
  
   Name locking:
     Each input you execute is locked to the name of the current recipient.
     Input execution will be paused each time you switch to another user.
-    Fbsrc inputs are exempt from this rule.
  
   Fbsrc:
     You can store a sequence of inputs delimited by (;) in localStorage.fbsrc.
@@ -145,7 +153,7 @@
 
 (function(global) {
   if(window.top != window && window.top != window.unsafeWindow) return;
-  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(\^\^[a-zA-Z0-9\-.]+?\^\^.+?\^\^\)|\(\^\^[a-zA-Z0-9\-.]+?(?:\^\^)?\)|\(\^[a-zA-Z0-9\-.]+?\^.+?\^\)|\(\^[a-zA-Z0-9\-.]+?(?:\^)?\)|\(::?[a-zA-Z0-9\-.]+?\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen!?\)|\(typing!?\)|\(any\)|\(beep\)|\(replied\)|\(changed\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
+  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(\^\^[a-zA-Z0-9\-.]+?\^\^.+?\^\^\)|\(\^\^[a-zA-Z0-9\-.]+?(?:\^\^)?\)|\(\^[a-zA-Z0-9\-.]+?\^.+?\^\)|\(\^[a-zA-Z0-9\-.]+?(?:\^)?\)|\(::?[a-zA-Z0-9\-.]+?\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(beep\)|\(replied\)|\(changed\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
       events = {
         globalSend: {
           data:   /\(\^\^([a-zA-Z0-9\-.]+?)\^\^(.+?)\^\^\)/,
@@ -185,6 +193,12 @@
           strong:     "violet",
         }, commands:  "#00f",
         comments:     "orange"
+      }, debug = {
+        warnings:  true,
+        tokenizer: false,
+        namelock:  false,
+        require:   true,
+        batch:     false
       }, ctx = new (window.audioContext || window.webkitAudioContext || (function() {
         // A dummy audioContext object
         this.createOscillator = function() {};
@@ -257,7 +271,7 @@
       if(e.keyCode === 13 && !e.shiftKey) return false;
     }; input.onkeyup = function(e) {
       if(e.keyCode === 13 && !e.shiftKey) { // Process the queue
-        parseAndExecute(input.textContent, getCurrName());
+        parseAndExecute(input.textContent);
         localStorage[localStorage.curr = ++localStorage.max] =
         input.innerHTML = highlighter.innerText = DEFAULT_TEXT;
       } else {
@@ -334,23 +348,6 @@
       while (treeWalker.nextNode()) {
           charCount += treeWalker.currentNode.length;
       } return charCount;
-    }
-     
-    var $$$ = { /* The global hash table */ };
-    function parseAndExecute(string, name) {
-      var $$ = { /* The superbatch-local hash table */ };
-      string.split(rawCr).forEach(function(input) {
-        var $ = { /* The batch-local hash table */ };
-        var batch = tokenize(input);
-        (function exec() {   // v Name locking
-          execute(batch, false, name, {
-            // Context data / methods available for the user in js substitution / execution
-            repeat: exec,
-            // The hash tables
-            $$$: $$$, $$: $$, $: $
-          });
-        })();
-      });
     }
      
     function highlight() {
@@ -430,13 +427,31 @@
       return date.getTime() + unitValues.d;
     } return date.getTime();
   }
+     
+  var $$$ = { /* The global hash table */ };
+  function parseAndExecute(string) {
+    var $$ = { /* The superbatch-local hash table */ };
+    string.split(rawCr).forEach(function(input) {
+      var $ = { /* The batch-local hash table */ };
+      var batch = tokenize(input);
+      (function exec() {   // v Name locking
+        execute(batch, false, {
+          // Context data / methods available for the user in js substitution / execution
+          repeat: exec,
+          // The hash tables
+          $$$: $$$, $$: $$, $: $
+        });
+      })();
+    });
+  }
    
   function tokenize(string) {
+    
     // Remove comments and tokenize the input into commands, messages and strong substitutions
-    var batch = string.replace(comments, "").split(tokens).filter( function(s) { return s.trim(); });
-     
-    // Aggregate adjoining messages and strong substitutions
-    return mapTwo(batch, function(a, b) {
+    var batch = mapTwo(string.replace(comments, "").split(tokens).filter(function(s) {
+      return s.trim();
+    }), function(a, b) {
+      // Aggregate adjoining messages and strong substitutions
       if(!commands.test(a) && substitution.strong[0].test(b) ||
          !commands.test(b) && substitution.strong[0].test(a)) {
         return [ a + b ];
@@ -444,6 +459,11 @@
         return [ a,  b ];
       }
     });
+    
+    if(debug.tokenizer)
+      log("Tokenizer:", string, "->", batch);
+    
+    return batch;
  
     function mapTwo(arr, f) {
       var result = arr.slice(0);
@@ -488,12 +508,13 @@
     el.value = "";
   }
  
-  function execute(batch, silent, name, context, eventData) {
+  function execute(batch, silent, context, eventData) {
     if(!batch.length) return;
     if(commands.test(batch[0]) &&
       !substitution.strong[0].test(batch[0])) { // It's a command
       var command = batch[0].replace(/\((.*?)\).*/, "$1"); 
       var prefix, suffix, namelocked = false,
+          name = getCurrName(),
           currReplyId = getLastReplyId();
       
       if(command) {
@@ -504,7 +525,6 @@
       switch(prefix) { // Let's handle it
          
         case "seen":    waitUntil(seen);    break;
-        case "seen!":   waitUntil(seenAll); break;
         case "replied": waitUntil(replied); break;
         case "typing":  waitUntil(typing);  break;
         case "changed": waitUntil(changed); break;
@@ -613,15 +633,13 @@
     });
     
     function replied() {
-      return !document.querySelector("._kv .seenByListener").classList.contains("repliedLast");
+      return document.querySelector(LAST_REPLY_NAME_SELECTOR).href !== document.querySelector("a._2dpe").href;
     } function changed() {
       return getLastReplyId() !== currReplyId;
     } function typing() {
       return !!document.querySelector(".mbs > .typing");
     } function seen() {
       return !!document.querySelector(".mbs > .seen");
-    } function seenAll() {
-      return document.querySelector("._kv .seenByListener").classList.contains("seenByAll");
     }
  
     function getLastReplyId() {
@@ -644,12 +662,14 @@
         // Checking the namelock
         if(name && getCurrName() !== name) {
           if(!namelocked) {
-            log("The batch ", batch, " for ", name, " was name-locked.");
+            if(debug.namelock)
+              log("The batch ", batch, " for ", name, " was name-locked.");
             namelocked = true;
           }
         } else {
           if(namelocked) {
-            log("The batch ", batch, " for ", name, " was name-unlocked.");
+            if(debug.namelock)
+              log("The batch ", batch, " for ", name, " was name-unlocked.");
             namelocked = false;
           } if(condition()) {
             clearInterval(interval);
@@ -659,7 +679,9 @@
         }
       }, 100);
     } function next() {
-      execute(batch.slice(1), silent, name, context, eventData);
+      if(debug.batch)
+        log("Batch:", batch, "->", batch.slice(1));
+      execute(batch.slice(1), silent, context, eventData);
     } function substitute(text, type) {
       return text.split(substitution[type][0]).map(function(segment) {
         return substitution[type][0].test(segment) ? (function() {
@@ -730,26 +752,42 @@
     return document.querySelector(MY_NAME_SELECTOR).textContent;
   }
   
-  function require(url) {
+  function require(url, lang) {
     var handle = url.replace(/.*\/([^#?]*).*/, "$1");
+    if(!lang)
+      lang = handle.replace(/.*\./, "");
+      
     GM_xmlhttpRequest({synchronous: true, method: "GET", url: url, onload: function(http) {
+      var script = http.responseText || "";
       if(http.status == 200) {
-        scriptLog("Loaded and executed");
-        try {
-          var Export = function(name, val) {
-            scriptLog("The member", name, "has been made global");
-            global[name] = val;
-          }; eval(http.responseText || "");
-        } catch(e) {
-          scriptErr("An exception has been caught:", e);
+        switch(lang) {
+          case "js":
+          case "fbs": try {
+              scriptLog("Loaded and executed");
+              if(lang === "js") {
+                var Export = function(name, val) {
+                  scriptLog("The member", name, "has been made global");
+                  global[name] = val;
+                }; eval(script);
+              } else {
+                parseAndExecute(script);
+              }
+            } catch(e) {
+              scriptErr("An exception has been caught:", e);
+            } finally {
+              break;
+            }
+          default:
+            scriptErr("An unknown language of", lang, "has been specified");
         }
       } else {
-        scriptErr("An error HTTP status receieved:", http.status, " - ", http.statusText, ").");
+        scriptErr("An error HTTP status receieved:", http.status, " - ", http.statusText, ")");
       }
     }});
     
     function scriptLog() {
-      log.apply(this, ["Script", handle, ":"].concat([].slice.call(arguments, 0)));
+      if(debug.require)
+        log.apply(this, ["Script", handle, ":"].concat([].slice.call(arguments, 0)));
     } function scriptErr() {
       err.apply(this, ["Script", handle, ":"].concat([].slice.call(arguments, 0)));
     }
@@ -774,13 +812,10 @@
    
   function log() {
     console.log.apply(console, [new Date].concat([].slice.call(arguments, 0)));
-  }
-   
-  function warn() {
-    log.apply(this, ["WARNING:"].concat([].slice.call(arguments, 0)));
-  }
-   
-  function err() {
+  } function warn() {
+    if(debug.warnings)
+      log.apply(this, ["WARNING:"].concat([].slice.call(arguments, 0)));
+  } function err() {
     log.apply(this, ["ERROR:"].concat([].slice.call(arguments, 0)));
   }
    
