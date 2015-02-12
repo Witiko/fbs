@@ -208,7 +208,7 @@
         warnings:  true,
         tokenizer: false,
         namelock:  false,
-        require:   true,
+        require:   false,
         batch:     false
       }, ctx = new (window.audioContext || window.webkitAudioContext || (function() {
         // A dummy audioContext object
@@ -523,16 +523,28 @@
  
   function execute(batch, preventNamelock, silent, context, eventData) {
     if(!batch.length) return;
-    var name = getCurrName();
+
+    // Lazy definition #1
+    if(!preventNamelock)
+      var name = getCurrName();
+
     if(commands.test(batch[0]) &&
       !substitution.strong[0].test(batch[0])) { // It's a command
       var command = batch[0].replace(/\((.*?)\).*/, "$1"); 
-      var prefix, suffix, namelocked = false,
-          currReplyId = getLastReplyId();
+      var prefix, suffix, namelocked = false;
       
       if(command) {
         prefix = command.replace(/\s.*/, "");
         suffix = command.replace(/.*?\s/, "");
+      }
+
+      // Lazy definition #2
+      switch(prefix) {
+        case "changed":
+        case "posted":
+        case "typing!":
+        case "any":
+          var currReplyId = getLastReplyId();
       }
        
       switch(prefix) { // Let's handle it
