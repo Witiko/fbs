@@ -164,17 +164,17 @@
 
 (function(global) {
   if(window.top != window && window.top != window.unsafeWindow) return;
-  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(\^\^[a-zA-Z0-9\-.]+?\^\^.+?\^\^\)|\(\^\^[a-zA-Z0-9\-.]+?(?:\^\^)?\)|\(\^[a-zA-Z0-9\-.]+?\^.+?\^\)|\(\^[a-zA-Z0-9\-.]+?(?:\^)?\)|\(::?[a-zA-Z0-9\-.]+?\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(beep\)|\(replied\)|\(changed\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
+  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(\^\^[^:^]+?\^\^.+?\^\^\)|\(\^\^[^:^]+?(?:\^\^)?\)|\(\^[^:^]+?\^.+?\^\)|\(\^[^:^]+?(?:\^)?\)|\(::?[^:^]+?\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(beep\)|\(replied\)|\(changed\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
       events = {
         globalSend: {
-          data:   /\(\^\^([a-zA-Z0-9\-.]+?)\^\^(.+?)\^\^\)/,
-          nodata: /\(\^\^([a-zA-Z0-9\-.]+?)(?:\^\^)?\)/,
+          data:   /\(\^\^([^:^]+?)\^\^(.+?)\^\^\)/,
+          nodata: /\(\^\^([^:^]+?)(?:\^\^)?\)/,
         }, localSend: {
-          data:   /\(\^([a-zA-Z0-9\-.]+?)\^(.+?)\^\)/,
-          nodata: /\(\^([a-zA-Z0-9\-.]+?)(?:\^)?\)/
+          data:   /\(\^([^:^]+?)\^(.+?)\^\)/,
+          nodata: /\(\^([^:^]+?)(?:\^)?\)/
         }, receive: {
-          level:  /\(::([a-zA-Z0-9\-.]+?)\)/,
-          edge:    /\(:([a-zA-Z0-9\-.]+?)\)/
+          level:  /\(::([^:^]+?)\)/,
+          edge:    /\(:([^:^]+?)\)/
         }
       }, commands = new RegExp("(" + rawCommands.source + ")"),
       evals = /\(js\)(.*?)(?:\(js\)|$)/, rawCr = /\(;\)/,
@@ -496,7 +496,7 @@
   function send(message) {
     if(!message) return;
     setMessage(message);
-    document.querySelector("input[value=\"Odpovědět\"], input[value=\"Odpovědět všem\"]")
+    document.querySelector("input[value=\"Odpovědět\"], input[value=\"Odpovědět všem\"]").click();
   }
  
   function whisper(message) {
@@ -830,7 +830,7 @@
             scriptErr("An unknown language of", lang, "has been specified");
         }
       } else {
-        scriptErr("An error HTTP status receieved:", http.status, " - ", http.statusText, ")");
+        scriptErr("An error HTTP status received:", http.status, " - ", http.statusText, ")");
       }
     }});
     
