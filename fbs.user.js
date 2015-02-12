@@ -496,7 +496,7 @@
   function send(message) {
     if(!message) return;
     setMessage(message);
-    document.querySelector("input[value=\"Odpovědět\"]").click();
+    document.querySelector("input[value=\"Odpovědět\"], input[value=\"Odpovědět všem\"]")
   }
  
   function whisper(message) {
@@ -761,7 +761,7 @@
   // User utility functions to be used inside of substitutions
   function getLastReply() {
     var messages = document.querySelectorAll(REPLY_SELECTOR);
-    var paragraphs = messages[messages.length - 1].querySelectorAll("p");
+    var paragraphs = messages.length ? messages[messages.length - 1].querySelectorAll("p"): [];
     return paragraphs.length ? paragraphs[paragraphs.length - 1].textContent : "";
   }
 
