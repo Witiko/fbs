@@ -660,7 +660,8 @@
     function replied() {
       return document.querySelector(LAST_REPLY_NAME_SELECTOR).href !== document.querySelector("a._2dpe").href;
     } function changed() {
-      return getLastReplyId() !== currReplyId;
+      var lastReplyId = getLastReplyId();
+      return lastReplyId !== "" && lastReplyId !== currReplyId;
     } function typing() {
       return !!document.querySelector(".mbs > .typing");
     } function seen() {
@@ -673,8 +674,24 @@
       if(el)
         return el.id + "#" + el.querySelectorAll("p").length;
       else {
-        warn("getLastReplyId(): Couldn't retrieve the last reply id, returning a random string instead");
-        return Math.random();
+        warn("getLastReplyId(): Couldn't retrieve the last reply id, returning an empty string instead");
+        return "";
+      }
+    }
+
+    function checkNamelock() {
+      if(!preventNamelock && getCurrName() !== name) {
+        if(!namelocked) {
+          if(debug.namelock)
+            log("The batch ", batch, " for ", name, " was name-locked.");
+          namelocked = true;
+        } return false;
+      } else {
+        if(namelocked) {
+          if(debug.namelock)
+            log("The batch ", batch, " for ", name, " was name-unlocked.");
+          namelocked = false;
+        } return true;
       }
     }
  
@@ -684,23 +701,10 @@
       doWhen(function() { return true; }, action);
     } function doWhen(condition, action) {
       var interval = setInterval(function() {
-        // Checking the namelock
-        if(!preventNamelock && getCurrName() !== name) {
-          if(!namelocked) {
-            if(debug.namelock)
-              log("The batch ", batch, " for ", name, " was name-locked.");
-            namelocked = true;
-          }
-        } else {
-          if(namelocked) {
-            if(debug.namelock)
-              log("The batch ", batch, " for ", name, " was name-unlocked.");
-            namelocked = false;
-          } if(condition()) {
-            clearInterval(interval);
-            if(action) action();
-            next();
-          }
+        if(checkNamelock() && condition()) {
+          clearInterval(interval);
+          if(action) action();
+          next();
         }
       }, 100);
     } function next() {
@@ -744,8 +748,14 @@
         group: qualifiedName + name
       }); node.listen({
         multicast: function(msg) {
-          node.destroy();
-          callback(msg.data.payload);
+          var data = msg.data.payload;
+          if(checkNamelock()) {
+            node.destroy();
+            callback(data);
+          } else if(debug.namelock) {
+            log("An event", name, "with data", data, "was received by the batch",
+            	batch, "but was not captured due to the active namelock.");
+          }
         }
       });
        
@@ -770,8 +780,8 @@
     if(el)
       return el.textContent;
     else {
-      warn("getLastReplyName(): Couldn't retrieve the last reply name, returning a random string instead");
-      return Math.random();
+      warn("getLastReplyName(): Couldn't retrieve the last reply name, returning an empty string instead");
+      return "";
     }
   }
 
