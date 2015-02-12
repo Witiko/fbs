@@ -130,10 +130,20 @@
     The input tokenization is performed in three steps (see function tokenize):
      
       1) In the first step, the superbatch is split into batches delimited by (;). For each batch:
-        a) Split the batch into comments and non-comments. Discard the comments.
-        b) Split non-comments into strong substitution / commands and messages.
-        c) Concatenate adjoining strong substitutions and messages into compound messages.
-        d) Execute the resulting string of messages and commands.
+        a) Discard any new-line characters.
+
+          Note: This is an important detail. The tokenizer is not newline-aware and the only way to include a newline
+                character in the input is by circumventing the tokenizer altogether by using weak substitution as follows:
+
+                  This line will be `"\n"` split in the middle.
+
+                This is particularly important when inlining JavaScript via the (js) command or substitution. Due to the
+                discarded newline characters, you need to end each invocation with a semicolon.
+
+        b) Split the batch into comments and non-comments. Discard the comments.
+        c) Split non-comments into strong substitution / commands and messages.
+        d) Concatenate adjoining strong substitutions and messages into compound messages.
+        e) Execute the resulting string of messages and commands.
      
   Execution:     
       1) If the token is a command, the command is performed.
@@ -431,7 +441,7 @@
   var $$$ = { /* The global hash table */ };
   function parseAndExecute(string) {
     var $$ = { /* The superbatch-local hash table */ };
-    string.split(rawCr).forEach(function(input) {
+    string.replace(/\n/g, "").split(rawCr).forEach(function(input) {
       var $ = { /* The batch-local hash table */ };
       var batch = tokenize(input);
       (function exec() {   // v Name locking
@@ -448,7 +458,7 @@
   function tokenize(string) {
     
     // Remove comments and tokenize the input into commands, messages and strong substitutions
-    var batch = mapTwo(string.replace(comments, "").split(tokens).filter(function(s) {
+    var batch = mapTwo(string.replace(/\n/g, "").replace(comments, "").split(tokens).filter(function(s) {
       return s.trim();
     }), function(a, b) {
       // Aggregate adjoining messages and strong substitutions
