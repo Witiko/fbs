@@ -222,7 +222,7 @@
       REPLY_SELECTOR = "div[role=log] li.webMessengerMessageGroup",
       LAST_REPLY_NAME_SELECTOR = "div[role=log] li:last-child strong > a",
       MY_NAME_SELECTOR = "._2dpb", qualifiedName = "name.witiko.fbs.",
-      pastEvents = {};
+      pastEvents = {}, DOWHEN_INTERVAL = 500;
    
   log("fbs running");
  
@@ -706,7 +706,7 @@
           if(action) action();
           next();
         }
-      }, 100);
+      }, DOWHEN_INTERVAL);
     } function next() {
       if(debug.batch)
         log("Batch:", batch, "->", batch.slice(1));
