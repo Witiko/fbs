@@ -56,7 +56,7 @@
          (never) - Block indefinitely
          (at #1) - Wait until the specified point in time
                  - If isNaN(Date.parse("#1")), then a HH:MM:SS format is assumed (see function parseHMS for details)
-                 - If isNaN(parseHMS("#1")), then an exception is logged and (at #1) evaluates to (never)
+                 - If isNaN(parseHMS("#1")), then an exception is logged and (at #1) expands to (never)
    (/...) (//...
     or (//...//) - These commands are ignored (comments)
  
@@ -131,15 +131,17 @@
     The input tokenization is performed in three steps (see function tokenize):
      
       1) In the first step, the superbatch is split into batches delimited by (;). For each batch:
-        a) Discard any new-line characters.
+        a) Replace every sequence of one or more new-line character with a space character (0x20).
 
-          Note: This is an important detail. The tokenizer is not newline-aware and the only way to include a newline
-                character in the input is by circumventing the tokenizer altogether by using weak substitution as follows:
+          Note: This is an important detail. The rest of the tokenizer is not newline-aware and the only way to include a
+                newline character in the input is by circumventing the tokenizer altogether by using weak substitution as
+                follows:
 
                   This line will be `"\n"` split in the middle.
 
                 This is particularly important when inlining JavaScript via the (js) command or substitution. Due to the
-                discarded newline characters, you need to end each invocation with a semicolon.
+                discarded newline characters, you need to end each invocation with a semicolon. This doesn't apply when
+                evaluating JavaScript files directly using eval(), require() and the like.
 
         b) Split the batch into comments and non-comments. Discard the comments.
         c) Split non-comments into strong substitution / commands and messages.
@@ -150,7 +152,7 @@
       1) If the token is a command, the command is performed.
       2) If the token is a message, then:
         a) If the message contains a strong substitution, the substitution is performed, the resulting string
-           is retokenized as if it were a batch, the tokens are put in place of the original message and then executed.
+           is retokenized as if it were a batch, the tokens are put in place of the original token and then executed.
            
            Note: Since the result of the strong substitution is retokenized as if it were a batch (Tokenization > 1a),
                  the (;) separator has no meaning and will be interpreted as text.
@@ -240,9 +242,7 @@
  
     // Building a GUI
     var input = document.createElement("div"), highlighter,
-        DEFAULT_TEXT = "(v)",
-        ERASABLE = /^(\(v\)|\s*|<br\s*\/?\s*>)$/i,
-        hidden = true;
+        DEFAULT_TEXT = "(v)", hidden = true;
      
     if(!localStorage.curr) {
       localStorage.curr = localStorage.max = 0;
@@ -251,18 +251,19 @@
     with(input) {
       contentEditable = true;
       with(style) {
-        display   = "none";
-        fontSize  = "16px";
-        width     = "100%";
-        position  = "fixed";
-        bottom    = "0px";
-        left      = "0px";
-        outline   = "none";
+        display         = "none";
+        fontSize        = "16px";
+        fontFamily      = "monospace";
+        width           = "100%";
+        position        = "fixed";
+        bottom          = "0px";
+        left            = "0px";
+        outline         = "none";
         backgroundColor = "rgba(255, 255, 255, .75)";
-        margin    = "0px";
-        padding   = "5px";
-        zIndex    = "999";
-        borderTop = "1px solid rgba(0, 0, 0, .4)";
+        margin          = "0px";
+        padding         = "5px";
+        zIndex          = "999";
+        borderTop       = "1px solid rgba(0, 0, 0, .4)";
       }
     } with(highlighter = input.cloneNode(false)) {
       contentEditable = false;
@@ -282,7 +283,7 @@
       if(e.keyCode === 13 && !e.shiftKey) return false;
     }; input.onkeyup = function(e) {
       if(e.keyCode === 13 && !e.shiftKey) { // Process the queue
-        parseAndExecute(input.textContent);
+        parseAndExecute(html2text(input.innerHTML));
         localStorage[localStorage.curr = ++localStorage.max] =
         input.innerHTML = highlighter.innerText = DEFAULT_TEXT;
       } else {
@@ -292,7 +293,8 @@
             input.innerHTML = localStorage[--localStorage.curr];
             placeCaretAtEnd(input);
             while(localStorage.max !== localStorage.curr) { // Autoremoval of redundant tail entries
-              if(ERASABLE.test(localStorage[localStorage.max]))
+              var content = html2text(localStorage[localStorage.max]).trim();
+              if(!content || content === DEFAULT_TEXT)
                 localStorage.removeItem(localStorage.max--);
               else break;
             }
@@ -310,6 +312,18 @@
     }; document.body.appendChild(input);
     document.body.appendChild(highlighter);
     highlight();
+    
+    function html2text(html) {
+      return html.replace(/<br(\s*\/?\s*)?>/ig, "\n").
+                  replace(/<.*?>/mg, "").replace(/&lt;/g, "<").
+                                         replace(/&gt;/g, ">").
+                  replace(/&quot;/g, '"').replace(/&mp;/g, "&").
+                  replace(/&apos;/g, "'").replace(/&#(\d{1,4});/, function(match, number) {
+                                            return String.fromCharCode(parseInt(number, 10));
+                                       }).replace(/&#x([0-9a-fA-F]{1,4});/, function(match, number) {
+                                            return String.fromCharCode(parseInt(number, 16));
+                                       });
+    }
  
     function placeCaretAtEnd(el) {
       el.focus();
@@ -442,7 +456,7 @@
   var $$$ = { /* The global hash table */ };
   function parseAndExecute(string, preventNamelock) {
     var $$ = { /* The superbatch-local hash table */ };
-    string.replace(/\n/g, "").split(rawCr).forEach(function(input) {
+    string.replace(/\n+/g, " ").split(rawCr).forEach(function(input) {
       var $ = { /* The batch-local hash table */ };
       var batch = tokenize(input);
       (function exec() {   // v Name locking
@@ -461,7 +475,7 @@
   function tokenize(string) {
     
     // Remove comments and tokenize the input into commands, messages and strong substitutions
-    var batch = mapTwo(string.replace(/\n/g, "").replace(comments, "").split(tokens).filter(function(s) {
+    var batch = mapTwo(string.replace(/\n+/g, " ").replace(comments, "").split(tokens).filter(function(s) {
       return s.trim();
     }), function(a, b) {
       // Aggregate adjoining messages and strong substitutions
