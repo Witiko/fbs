@@ -762,7 +762,7 @@
   function getLastReply() {
     var messages = document.querySelectorAll(REPLY_SELECTOR);
     var paragraphs = messages[messages.length - 1].querySelectorAll("p");
-    return paragraphs[paragraphs.length - 1].textContent;
+    return paragraphs.length ? paragraphs[paragraphs.length - 1].textContent : "";
   }
 
   function getLastReplyName() {
