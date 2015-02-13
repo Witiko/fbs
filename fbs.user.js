@@ -90,12 +90,14 @@
                     
                    The following additional methods and variables are available for execution, substitution and event sending:
  
-  require(lang, url) - Synchronously loads and executes a script at the given url. The language of the script is specified
+  include(lang, url) - Synchronously loads and executes a script at the given url. The language of the script is specified
                        by the lang parameter, which can be either "js" (JavaScript) or "fbs" (Facebook Batch Sender). If no
                        language is specified, it will be guessed from the suffix of the specified file. In case of a
                        JavaScript script, a function Export(name, value) is made available for the script to export functions
                        and data.
                        
+  require(lang, url) - Similar to include, but ignores the invocation, if the script at the given url has already been loaded.
+           curl(url) - Downloads the resource at the given url via the GET request and returns its data.                       
        getCurrName() - The name of the current chat window
          getMyName() - The first name of the sender
            eventData - The data of the last captured event
@@ -224,7 +226,7 @@
       REPLY_SELECTOR = "div[role=log] li.webMessengerMessageGroup",
       LAST_REPLY_NAME_SELECTOR = "div[role=log] li:last-child strong > a",
       MY_NAME_SELECTOR = "._2dpb", qualifiedName = "name.witiko.fbs.",
-      pastEvents = {}, DOWHEN_INTERVAL = 500,
+      pastEvents = {}, requiredScripts = [], DOWHEN_INTERVAL = 500,
       h$ml = {
         entities: /&(quot|amp|apos|lt|gt|nbsp|iexcl|cent|pound|curren|yen|brvbar|sect|uml|copy|ordf|laquo|not|shy|reg|macr|deg|plusmn|sup2|sup3|acute|micro|para|middot|cedil|sup1|ordm|raquo|frac14|frac12|frac34|iquest|Agrave|Aacute|Acirc|Atilde|Auml|Aring|AElig|Ccedil|Egrave|Eacute|Ecirc|Euml|Igrave|Iacute|Icirc|Iuml|ETH|Ntilde|Ograve|Oacute|Ocirc|Otilde|Ouml|times|Oslash|Ugrave|Uacute|Ucirc|Uuml|Yacute|THORN|szlig|agrave|aacute|acirc|atilde|auml|aring|aelig|ccedil|egrave|eacute|ecirc|euml|igrave|iacute|icirc|iuml|eth|ntilde|ograve|oacute|ocirc|otilde|ouml|divide|oslash|ugrave|uacute|ucirc|uuml|yacute|thorn|yuml|OElig|oelig|Scaron|scaron|Yuml|fnof|circ|tilde|Alpha|Beta|Gamma|Delta|Epsilon|Zeta|Eta|Theta|Iota|Kappa|Lambda|Mu|Nu|Xi|Omicron|Pi|Rho|Sigma|Tau|Upsilon|Phi|Chi|Psi|Omega|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|sigmaf|sigma|tau|upsilon|phi|chi|psi|omega|thetasym|upsih|piv|ensp|emsp|thinsp|zwnj|zwj|lrm|rlm|ndash|mdash|lsquo|rsquo|sbquo|ldquo|rdquo|bdquo|dagger|Dagger|bull|hellip|permil|prime|Prime|lsaquo|rsaquo|oline|frasl|euro|image|weierp|real|trade|alefsym|larr|uarr|rarr|darr|harr|crarr|lArr|uArr|rArr|dArr|hArr|forall|part|exist|empty|nabla|isin|notin|ni|prod|sum|minus|lowast|radic|prop|infin|ang|and|or|cap|cup|int|there4|sim|cong|asymp|ne|equiv|le|ge|sub|sup|nsub|sube|supe|oplus|otimes|perp|sdot|lceil|rceil|lfloor|rfloor|lang|rang|loz|spades|clubs|hearts|diams);/mg,
         replacements: {
@@ -482,6 +484,37 @@
           "hearts": "\u2665",
           "diams": "\u2666"
         }
+      }, smileys = {
+        ":-)": /Emotikona smile/g,
+         ":)": /Emotikona smile/g, 
+        ":-(": /Emotikona frown/g,
+         ":(": /Emotikona frown/g,
+         ":P": /Emotikona tongue/g,
+        ":-P": /Emotikona tongue/g,
+        ":-D": /Emotikona grin/g,
+         ":D": /Emotikona grin/g,
+         "=D": /Emotikona grin/g,
+        ":-O": /Emotikona gasp/g,
+         ":O": /Emotikona gasp/g,
+        ";-)": /Emotikona see/g,
+         ";)": /Emotikona wink/g,
+         ":v": /Emotikona pacman/g,
+        ">:(": /Emotikona grumpy/g,
+        ">:o": /Emotikona upset/g,
+        ":-/": /Emotikona unsure/g,
+         ":/": /Emotikona unsure/g,
+        ":'(": /Emotikona cry/g,
+        "^_^": /Emotikona kiki/g,
+        "8-)": /Emotikona glasses/g,
+         "B|": /Emotikona sunglasses/g,
+         ":*": /Emotikona heart/g,
+         "<3": /Emotikona kiss/g,
+        "3:)": /Emotikona devil/g,
+        "O:)": /Emotikona angel/g,
+        "-_-": /Emotikona squint/g,
+        "o.O": /Emotikona confused/g,
+         ":3": /Emotikona colonthree/g,
+        "(y)": /Emotikona like/g
       };
    
   log("fbs running");
@@ -892,7 +925,7 @@
           })( batch[0].match(events.globalSend.nodata) );
              
           // An outgoing local event with data
-          if(events.localSend.data.test(batch[0])) (function(matches) {
+          else if(events.localSend.data.test(batch[0])) (function(matches) {
             localSend(matches[1], evaluate(matches[2]));
             next();
           })( batch[0].match(events.localSend.data) );
@@ -1044,7 +1077,13 @@
   function getLastReply() {
     var messages = document.querySelectorAll(REPLY_SELECTOR);
     var paragraphs = messages.length ? messages[messages.length - 1].querySelectorAll("p"): [];
-    return paragraphs.length ? paragraphs[paragraphs.length - 1].textContent : "";
+    return paragraphs.length ? text2smileys(paragraphs[paragraphs.length - 1].textContent) : "";
+    
+    function text2smileys(str) {
+      for(var smiley in smileys) {
+        str = str.replace(smileys[smiley], smiley);
+      } return str;
+    }
   }
 
   function getLastReplyName() {
@@ -1074,43 +1113,57 @@
   }
   
   function require(url, lang) {
-    var handle = url.replace(/.*\/([^#?]*).*/, "$1");
-    if(!lang)
-      lang = handle.replace(/.*\./, "");
-      
-    GM_xmlhttpRequest({synchronous: true, method: "GET", url: url, onload: function(http) {
-      var script = http.responseText || "";
-      if(http.status == 200) {
-        switch(lang) {
-          case "js":
-          case "fbs": try {
-              scriptLog("Loaded and executed");
-              if(lang === "js") {
-                var Export = function(name, val) {
-                  scriptLog("The member", name, "has been made global");
-                  global[name] = val;
-                }; eval(script);
-              } else {
-                parseAndExecute(script, true);
+    if(requiredScripts.indexOf(url) == -1) {
+      requiredScripts.push(url);
+      include(url, lang);
+    } else if(debug.require) {
+      warn("Script", url, "was required again, ignoring.");
+    }
+  }
+  
+  function include(url, lang) {
+    var handle = url.replace(/.*\/([^#?]*).*/, "$1"),
+        script = curl(url);
+    if(!lang) lang = handle.replace(/.*\./, "");
+
+    switch(lang) {
+      case "js":
+      case "fbs": try {
+          scriptLog("Loaded and executed");
+          if(lang === "js") {
+            with({
+              Export: function(name, val) {
+                scriptLog("The member", name, "has been made global");
+                global[name] = val;
               }
-            } catch(e) {
-              scriptErr("An exception has been caught:", e);
-            } finally {
-              break;
-            }
-          default:
-            scriptErr("An unknown language of", lang, "has been specified");
+            }) eval(script);
+          } else {
+            parseAndExecute(script, true);
+          }
+        } catch(e) {
+          scriptErr("An exception has been caught:", e);
+        } finally {
+          break;
         }
-      } else {
-        scriptErr("An error HTTP status received:", http.status, " - ", http.statusText, ")");
-      }
-    }});
+      default:
+        scriptErr("An unknown language of", lang, "has been specified");
+    }    
     
     function scriptLog() {
       if(debug.require)
         log.apply(this, ["Script", handle, ":"].concat([].slice.call(arguments, 0)));
     } function scriptErr() {
       err.apply(this, ["Script", handle, ":"].concat([].slice.call(arguments, 0)));
+    }
+  }
+  
+  function curl(url) {
+    var http = GM_xmlhttpRequest({synchronous: true, method: "GET", url: url});
+    if(http.status == 200) {
+      return http.responseText;
+    } else {
+      warn("Failed to download resource from the url", url, " (" + http.status + " – " + http.statusText + ")");
+      return "";
     }
   }
    
@@ -1132,7 +1185,7 @@
   }
    
   function log() {
-    console.log.apply(console, [new Date].concat([].slice.call(arguments, 0)));
+    console.log.apply(console, [].slice.call(arguments, 0));
   } function warn() {
     if(debug.warnings)
       log.apply(this, ["WARNING:"].concat([].slice.call(arguments, 0)));
