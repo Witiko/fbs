@@ -18,6 +18,7 @@
          The entire input is called a superbatch.
          Each of the sections of a superbatch delimited by (;) is processed in parallel to the others and is called a batch.
          Each batch is composed of messages, commands, comments and substitutions, whose meaning is described below.
+         Batches can be instantiated several times and run in parallel using the clone() JavaScript call.
  
   Commands:
     Responding to actions:
@@ -57,7 +58,7 @@
         (:EVENT)   - Wait until the event named EVENT has occured in the current window and capture it
                      Edge-triggered -- waits until the event occurs
        (::EVENT)   - Wait until the event named EVENT has occured in the current window and capture it
-                     Level-triggered -- returns immediately, if the event has already been captured in the current batch instance)
+                     Level-triggered -- returns immediately, if the event has already been captured in the current batch instance
  
     Miscellaneous:
              (v) - Redirect all following messages to console.log
@@ -82,7 +83,9 @@
                 ms - Milliseconds
     
     (js)...(js)
-    or (js)...   - Execute the enclosed javascript code
+    or (js)...   - Execute the enclosed javascript code. This command always takes precedence during the tokenization,
+                   e.g. (js)...(command)...(js) always becomes one (js)...(js) token rather that a (js)... message,
+                   (command) and a ...(js) message.
           `...`  - Execute the enclosed javascript code and substitute the command for its return value. (weak)
                    Weak substitution is only allowed within messages.
                    Weak substitution is non-recursive -- its return value is always regarded as a message.
@@ -217,7 +220,9 @@
           edge:    /\(:([^:^]+?)\)/
         }
       }, commands = new RegExp("(" + rawCommands.source + ")"),
-      evals = /\(js\)(.*?)(?:\(js\)|$)/, rawCr = /\(;\)/,
+      evals = /\(js\)(.*?)(?:\(js\)|$)/,
+      gEvals = new RegExp(evals.source, "g"),
+      rawCr = /\(;\)/,
       cr = new RegExp("(" + rawCr.source + ")"),
       substitution = {
         //      outer capture, inner capture, no capture
@@ -716,9 +721,9 @@
                              : text.split(comments).map(function(text) {
           return comments.test(text) ? "<span style=\"background-color: " + colors.comments + "\">" + text + "</span>"
                                      : text.split(tokens).map(function(text) {
-            var coloredText;
-            if(events.send.async.global.data.test(text) || events.send.async.local.data.test(text) ||
-               events.send. sync.global.data.test(text) || events.send. sync.local.data.test(text)) {
+            var coloredText, nojstext = text.replace(gEvals, "");
+            if(events.send.async.global.data.test(nojstext) || events.send.async.local.data.test(nojstext) ||
+               events.send. sync.global.data.test(nojstext) || events.send. sync.local.data.test(nojstext)) {
               var spikes = events.send.async.global.data.test(text) ||
                            events.send.sync. global.data.test(text) ? "^^" : "^",
                   prefix = events.send.async.global.data.test(text) || events.send.async.local.data.test(text) ? "@" : "",
