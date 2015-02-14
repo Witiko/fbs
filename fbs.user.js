@@ -6,7 +6,7 @@
 // @require        http://tiny.cc/dingjs
 // @downloadURL    https://www.dropbox.com/s/5eet5uqk54xdwlc/fbs.user.js?dl=1
 // @grant          GM_xmlhttpRequest
-// @version        1.10
+// @version        1.11
 // ==/UserScript==
  
 /*
@@ -47,13 +47,14 @@
         (:EVENT)   - Wait until the event named EVENT has occured in the current window and capture it
                      Edge-triggered -- waits until the event occurs
        (::EVENT)   - Wait until the event named EVENT has occured in the current window and capture it
-                     Level-triggered -- returns immediately, if the event has already been captured)
+                     Level-triggered -- returns immediately, if the event has already been captured in the current batch instance)
  
     Miscellaneous:
              (v) - Redirect all following messages to console.log
              (^) - Redirect all following messages to the current recipient (implicit)
-          (beep) - Let out a beeping sound (html5.audioContext dependent)
+        (notify) - Notify the user. In the current implementation lets out a beeping sound (html5.audioContext dependent)
          (never) - Block indefinitely
+        (repeat) - Repeats the current instance of the batch ( expands to (js)clone($i)(js)(never) )
          (at #1) - Wait until the specified point in time
                  - If isNaN(Date.parse("#1")), then a HH:MM:SS format is assumed (see function parseHMS for details)
                  - If isNaN(parseHMS("#1")), then an exception is logged and (at #1) expands to (never)
@@ -79,14 +80,20 @@
                    Examples:                  
                      Did you know that 1 + 2 = `1 + 2`?  ~>  Did you know that 1 + 2 = 3?
                      Hey, `getCurrName()`, I am `getMyName()`.  ~>  Hey, Karel, I am Vít.
+                     This command will not be executed, but printed: `"(" + "never" + ")"`
+                       ~> This command will not be executed, but printed: (never)
                     
-         ``...`` - Execute the enclosed javascript code and substitute the command for its return value. (strong)
+       ```...``` - Execute the enclosed javascript code and substitute the command for its return value. (strong)
                    Strong substitution is allowed anywhere.
                    Strong substitution is recursive -- its return value is always retokenized.
                     
                    Examples:
-                     (``1 + 2``s)You've got five seconds to tell me where I am and three have just passed.
-                     This will get posted.(``condition ? "^" : "v"``)And this will conditionally not get posted.
+                     (```1 + 2```s)You've got five seconds to tell me where I am and three have just passed.
+                     This will get posted.```condition ? "(never)"```And this will conditionally not get posted.
+                     
+                     (js)$i.count = 1; $i.expand = function() {
+                       return weak("$i.count++") + "(2s)" + strong("$i.expand()");
+                     }(js)```$i.expand()``` (// Will keep on counting ad-infinitum
                     
                    The following additional methods and variables are available for execution, substitution and event sending:
  
@@ -103,15 +110,21 @@
            eventData - The data of the last captured event
       getLastReply() - The last chat message
   getLastReplyName() - The name of the last chat message sender
-            repeat() - Repeat the entire batch (poor man's loop)
+          clone(obj) - Create a new instance of the current batch, whose $i hash table is obj
             editRc() - Paste the entire fbsrc into the message box
                        Double-clicking the message box saves the new fbsrc
       log(arg1, ...) - Log the arguments into the console (a generic message)
      warn(arg1, ...) - Log the arguments into the console (a warning)
       err(arg1, ...) - Log the arguments into the console (an error)
-                 $$$ - A non-persistent window-local hash table
-                  $$ - A non-persistent superbatch-local hash table
-                   $ - A non-persistent batch-local hash table
+                  $w - A non-persistent window-local hash table
+                  $s - A non-persistent superbatch-local hash table
+                  $b - A non-persistent batch-local hash table
+                  $i - A non-persistent batch-instance-local hash table
+                  
+ preserveNewlines(s) - This function replaces all occurances of "\n" in s with `'\\n'`. This is necessary to prevent
+                       the removal of newlines from the string returned by strong substitution by the tokenizer.
+           strong(s) - Returns "```" + s + "```"
+             weak(s) - Returns   "`" + s + "`"
                    
                debug - The debug object contains the following values:
        warnings (true) - Controls, whether the warn() function prints any messages into the console
@@ -126,7 +139,7 @@
     Fbsrc and fbs scripts loaded via the require() function are exempt from this rule.
  
   Fbsrc:
-    You can store a sequence of inputs delimited by (;) in localStorage.fbsrc.
+    You can store a superbatch in localStorage.fbsrc.
     These inputs will be automatically executed (without name locking) each time the userscript is loaded.
    
   Tokenization:
@@ -137,7 +150,7 @@
 
           Note: This is an important detail. The rest of the tokenizer is not newline-aware and the only way to include a
                 newline character in the input is by circumventing the tokenizer altogether by using weak substitution as
-                follows:
+                follows (as provisioned by the preserveNewlines() function):
 
                   This line will be `"\n"` split in the middle.
 
@@ -168,7 +181,7 @@
 
 (function(global) {
   if(window.top != window && window.top != window.unsafeWindow) return;
-  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(\^\^[^:^]+?\^\^.+?\^\^\)|\(\^\^[^:^]+?(?:\^\^)?\)|\(\^[^:^]+?\^.+?\^\)|\(\^[^:^]+?(?:\^)?\)|\(::?[^:^]+?\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(beep\)|\(replied\)|\(changed\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
+  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(\^\^[^:^]+?\^\^.+?\^\^\)|\(\^\^[^:^]+?(?:\^\^)?\)|\(\^[^:^]+?\^.+?\^\)|\(\^[^:^]+?(?:\^)?\)|\(::?[^:^]+?\)|\(repeat\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(notify\)|\(replied\)|\(changed\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
       events = {
         globalSend: {
           data:   /\(\^\^([^:^]+?)\^\^(.+?)\^\^\)/,
@@ -185,8 +198,8 @@
       cr = new RegExp("(" + rawCr.source + ")"),
       substitution = {
         //      outer capture, inner capture, no capture
-        weak:   [  /(`.*?`)/ ,  /(`(.*?)`)/ ,  /`.*?`/  ],
-        strong: [ /(``.*?``)/, /(``(.*?)``)/, /``.*?``/ ]
+        weak:   [   /(`.*?`)/ ,    /(`(.*?)`)/ ,    /`.*?`/   ],
+        strong: [ /(```.*?```)/, /(```(.*?)```)/, /```.*?```/ ]
       }, rawTokens = new RegExp(substitution.strong[2].source + "|" + rawCommands.source),
       tokens = new RegExp("(" + rawTokens.source + ")"),
       comments = /(\(\/\/.*?(?:\/\/\)|$)|\(\/.*?\))/g,
@@ -216,7 +229,14 @@
         batch:     false
       }, ctx = new (window.audioContext || window.webkitAudioContext || (function() {
         // A dummy audioContext object
-        this.createOscillator = function() {};
+        this.createOscillator = function() {
+          return {
+            connect:    function() {},
+            disconnect: function() {},
+            noteOn:     function() {},
+            noteOff:    function() {}
+          };
+        };
         this.connect          = function() {};
         this.disconnect       = function() {};
         this.noteOn           = function() {};
@@ -226,7 +246,7 @@
       REPLY_SELECTOR = "div[role=log] li.webMessengerMessageGroup",
       LAST_REPLY_NAME_SELECTOR = "div[role=log] li:last-child strong > a",
       MY_NAME_SELECTOR = "._2dpb", qualifiedName = "name.witiko.fbs.",
-      pastEvents = {}, requiredScripts = [], DOWHEN_INTERVAL = 500,
+      requiredScripts = [], DOWHEN_INTERVAL = 500,
       h$ml = {
         entities: /&(quot|amp|apos|lt|gt|nbsp|iexcl|cent|pound|curren|yen|brvbar|sect|uml|copy|ordf|laquo|not|shy|reg|macr|deg|plusmn|sup2|sup3|acute|micro|para|middot|cedil|sup1|ordm|raquo|frac14|frac12|frac34|iquest|Agrave|Aacute|Acirc|Atilde|Auml|Aring|AElig|Ccedil|Egrave|Eacute|Ecirc|Euml|Igrave|Iacute|Icirc|Iuml|ETH|Ntilde|Ograve|Oacute|Ocirc|Otilde|Ouml|times|Oslash|Ugrave|Uacute|Ucirc|Uuml|Yacute|THORN|szlig|agrave|aacute|acirc|atilde|auml|aring|aelig|ccedil|egrave|eacute|ecirc|euml|igrave|iacute|icirc|iuml|eth|ntilde|ograve|oacute|ocirc|otilde|ouml|divide|oslash|ugrave|uacute|ucirc|uuml|yacute|thorn|yuml|OElig|oelig|Scaron|scaron|Yuml|fnof|circ|tilde|Alpha|Beta|Gamma|Delta|Epsilon|Zeta|Eta|Theta|Iota|Kappa|Lambda|Mu|Nu|Xi|Omicron|Pi|Rho|Sigma|Tau|Upsilon|Phi|Chi|Psi|Omega|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|sigmaf|sigma|tau|upsilon|phi|chi|psi|omega|thetasym|upsih|piv|ensp|emsp|thinsp|zwnj|zwj|lrm|rlm|ndash|mdash|lsquo|rsquo|sbquo|ldquo|rdquo|bdquo|dagger|Dagger|bull|hellip|permil|prime|Prime|lsaquo|rsaquo|oline|frasl|euro|image|weierp|real|trade|alefsym|larr|uarr|rarr|darr|harr|crarr|lArr|uArr|rArr|dArr|hArr|forall|part|exist|empty|nabla|isin|notin|ni|prod|sum|minus|lowast|radic|prop|infin|ang|and|or|cap|cup|int|there4|sim|cong|asymp|ne|equiv|le|ge|sub|sup|nsub|sube|supe|oplus|otimes|perp|sdot|lceil|rceil|lfloor|rfloor|lang|rang|loz|spades|clubs|hearts|diams);/mg,
         replacements: {
@@ -744,20 +764,23 @@
     } return date.getTime();
   }
      
-  var $$$ = { /* The global hash table */ };
+  var $w = { /* The window-local hash table */ };
   function parseAndExecute(string, preventNamelock) {
-    var $$ = { /* The superbatch-local hash table */ };
+    var $s = { /* The superbatch-local hash table */ };
     string.replace(/\n+/g, " ").split(rawCr).forEach(function(input) {
-      var $ = { /* The batch-local hash table */ };
+      var $b = { /* The batch-local hash table */ };
       var batch = tokenize(input);
-      (function exec() {   // v Name locking
+      (function exec($i, pastEvents) {   // v Name locking
         if(preventNamelock && debug.namelock)
           log("The batch", batch, "has been executed without namelocking");
-        execute(batch, preventNamelock, false, {
+        execute(batch, preventNamelock, pastEvents || { /* The past captured events */ }, false, {
           // Context data / methods available for the user in js substitution / execution
-          repeat: exec,
+          clone: exec,
           // The hash tables
-          $$$: $$$, $$: $$, $: $
+          $w: $w,
+          $s: $s,
+          $b: $b,
+          $i: $i || { /* The batch-instance-local hash table */ }
         });
       })();
     });
@@ -826,7 +849,7 @@
     el.value = "";
   }
  
-  function execute(batch, preventNamelock, silent, context, eventData) {
+  function execute(batch, preventNamelock, pastEvents, silent, context, eventData) {
     if(!batch.length) return;
 
     // Lazy definition #1
@@ -899,7 +922,10 @@
  
         case "^": silent = false; next(); break;
         case "v": silent = true;  next(); break;
-        case "beep": perform(beep); break;
+        case "notify": perform(beep); break;
+        case "repeat":
+          with(context) clone($i, pastEvents);
+          // Fall-through
         case "never": break;
         case "at":
           var at = Date.parse(suffix) || parseHMS(suffix);
@@ -1015,7 +1041,7 @@
     } function next() {
       if(debug.batch)
         log("Batch:", batch, "->", batch.slice(1));
-      execute(batch.slice(1), preventNamelock, silent, context, eventData);
+      execute(batch.slice(1), preventNamelock, pastEvents, silent, context, eventData);
     } function substitute(text, type) {
       return text.split(substitution[type][0]).map(function(segment) {
         return substitution[type][0].test(segment) ? (function() {
@@ -1182,6 +1208,19 @@
       if (checked) checkbox.click();
       document.querySelector(MESSAGE_SELECTOR).ondblclick = null;
     }
+  }
+  
+  /* Convenience strong-substitution functions */
+  function preserveNewlines(str) {
+    return str.replace( /\n/g, weak("'\\n'") );
+  }
+  
+  function strong(str) {
+    return "```" + str + "```";
+  }
+  
+  function weak(str) {
+    return "`" + str + "`";
   }
    
   function log() {
