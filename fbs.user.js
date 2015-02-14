@@ -70,7 +70,11 @@
                  - If isNaN(Date.parse("#1")), then a HH:MM:SS format is assumed (see function parseHMS for details)
                  - If isNaN(parseHMS("#1")), then an exception is logged and (at #1) expands to (never)
    (/...) (//...
-    or (//...//) - These commands are ignored (comments)
+    or (//...//) - These commands are ignored (comments). When inlining javascript calls in the following form:
+    
+                     string.test(/regexp/)
+                    
+                   Put a space after the opening bracket to prevent erroneous interpretation.
  
    (<#1><unit1> <#2><unit2> ...
     <#N><unitN>) - Wait \sum_{1\leq I\leq N}#i <unitI>, where <unitI>\in:
@@ -117,7 +121,11 @@
                        and data.
                        
   require(lang, url) - Similar to include, but ignores the invocation, if the script at the given url has already been loaded.
-           curl(url) - Downloads the resource at the given url via the GET request and returns its data.                       
+  
+           curl(url) - Downloads the resource at the given url via the GET request and returns its data. You can detect failure
+                       by testing for empty string as a return value. If you need more control, use the Greasemonkey
+                       GM_xmlhttpRequest function in stead.
+                       
        getCurrName() - The name of the current chat window
          getMyName() - The first name of the sender
            eventData - The data of the last captured event
@@ -126,9 +134,11 @@
           clone(obj) - Create a new instance of the current batch, whose $i hash table is obj
             editRc() - Paste the entire fbsrc into the message box
                        Double-clicking the message box saves the new fbsrc
+                       
       log(arg1, ...) - Log the arguments into the console (a generic message)
      warn(arg1, ...) - Log the arguments into the console (a warning)
       err(arg1, ...) - Log the arguments into the console (an error)
+      
               global - A reference to the userscript scope. Can be used to reference members using the bracket notation.
                   $w - A non-persistent window-local hash table
                   $s - A non-persistent superbatch-local hash table
@@ -144,7 +154,8 @@
        warnings (true) - Controls, whether the warn() function prints any messages into the console
      tokenizer (false) - Logs the activity of the tokenizer into the console
       namelock (false) - Logs information regarding the name lock into the console
-       require (false) - Logs information regarding the loading and execution of scripts using the require() function into the console
+       require (false) - Logs information regarding the loading and execution of scripts using the require() and include()
+                         functions into the console
          batch (false) - Logs information regarding the state of the executed batches into the console
  
   Name locking:
@@ -189,6 +200,7 @@
         b) Otherwise:
            i) If the message contains a weak substitution, the substitution is performed.
           ii) The resulting string is sent to the current recipient or logged to the console depending on the mode.
+              ( See commands (v) and (^) )
          
  
 */
@@ -714,7 +726,8 @@
           charCount += treeWalker.currentNode.length;
       } return charCount;
     }
-     
+    
+
     function highlight() {
       highlighter.innerHTML = input.innerHTML.split(cr).map(function(text) {
         return cr.test(text) ? "<span style=\"background-color: " + colors.cr + "\">" + text + "</span>"
