@@ -8,7 +8,7 @@
 // @grant          GM_xmlhttpRequest
 // @version        1.11
 // ==/UserScript==
- 
+
 /*
  
   Input: <Message1/Command1><Message2/Command2> ... <MessageN/CommandN>(;)
@@ -39,11 +39,21 @@
        
   User-defined events:
         (^EVENT)
-     or (^EVENT^)  - Emit an event named EVENT in the current window passing undefined as the message
-    (^EVENT^DATA^) - Emit an event named EVENT in the current window passing eval("DATA") as the message
+     or (^EVENT^)  - Emit an event named EVENT in the current window passing "undefined" as the message. Blocks until received.
+    (^EVENT^DATA^) - Emit an event named EVENT in the current window passing String(eval("DATA")) as the message.
+                     Blocks until received.
        (^^EVENT)
-    or (^^EVENT^^) - Emit an event named EVENT in all open windows passing "undefined" as the message
- (^^EVENT^^DATA^^) - Emit an event named EVENT in all open windows passing String(eval("DATA")) as the message
+    or (^^EVENT^^) - Emit an event named EVENT in all open windows passing "undefined" as the message. Blocks until received.
+ (^^EVENT^^DATA^^) - Emit an event named EVENT in all open windows passing String(eval("DATA")) as the message.
+                     Blocks until received.
+ 
+        (@^EVENT)
+     or (@^EVENT^) - Same as (^EVENT) or (^EVENT^). The call, however, doesn't block.
+   (@^EVENT^DATA^) - Same as (^EVENT^DATA^). The call, however, doesn't block.
+      (@^^EVENT)
+   or (@^^EVENT^^) - Same as (^^EVENT) or (^^EVENT^^). The call, however, doesn't block.
+(@^^EVENT^^DATA^^) - Same as (^^EVENT^^DATA^^). The call, however, doesn't block.
+ 
         (:EVENT)   - Wait until the event named EVENT has occured in the current window and capture it
                      Edge-triggered -- waits until the event occurs
        (::EVENT)   - Wait until the event named EVENT has occured in the current window and capture it
@@ -182,14 +192,26 @@
 
 (function(global) {
   if(window.top != window && window.top != window.unsafeWindow) return;
-  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(\^\^[^:^]+?\^\^.+?\^\^\)|\(\^\^[^:^]+?(?:\^\^)?\)|\(\^[^:^]+?\^.+?\^\)|\(\^[^:^]+?(?:\^)?\)|\(::?[^:^]+?\)|\(repeat\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(notify\)|\(replied\)|\(changed\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
+  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(@?\^\^[^:^]+?\^\^.+?\^\^\)|\(@?\^\^[^:^]+?(?:\^\^)?\)|\(@?\^[^:^]+?\^.+?\^\)|\(@?\^[^:^]+?(?:\^)?\)|\(::?[^:^]+?\)|\(repeat\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(notify\)|\(replied\)|\(changed\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
       events = {
-        globalSend: {
-          data:   /\(\^\^([^:^]+?)\^\^(.+?)\^\^\)/,
-          nodata: /\(\^\^([^:^]+?)(?:\^\^)?\)/,
-        }, localSend: {
-          data:   /\(\^([^:^]+?)\^(.+?)\^\)/,
-          nodata: /\(\^([^:^]+?)(?:\^)?\)/
+        send: {
+          async: {
+            global: {
+              data:   /\(@\^\^([^:^]+?)\^\^(.+?)\^\^\)/,
+              nodata: /\(@\^\^([^:^]+?)(?:\^\^)?\)/,
+            }, local: {
+              data:   /\(@\^([^:^]+?)\^(.+?)\^\)/,
+              nodata: /\(@\^([^:^]+?)(?:\^)?\)/
+            }
+          }, sync: {
+            global: {
+              data:   /\(\^\^([^:^]+?)\^\^(.+?)\^\^\)/,
+              nodata: /\(\^\^([^:^]+?)(?:\^\^)?\)/,
+            }, local: {
+              data:   /\(\^([^:^]+?)\^(.+?)\^\)/,
+              nodata: /\(\^([^:^]+?)(?:\^)?\)/
+            }
+          }
         }, receive: {
           level:  /\(::([^:^]+?)\)/,
           edge:    /\(:([^:^]+?)\)/
@@ -247,6 +269,7 @@
       REPLY_SELECTOR = "div[role=log] li.webMessengerMessageGroup",
       LAST_REPLY_NAME_SELECTOR = "div[role=log] li:last-child strong > a",
       MY_NAME_SELECTOR = "._2dpb", qualifiedName = "name.witiko.fbs.",
+      readyPrefix = "ready@", dataPrefix = "data@", receivedPrefix = "received@",
       requiredScripts = [], DOWHEN_INTERVAL = 500,
       h$ml = {
         entities: /&(quot|amp|apos|lt|gt|nbsp|iexcl|cent|pound|curren|yen|brvbar|sect|uml|copy|ordf|laquo|not|shy|reg|macr|deg|plusmn|sup2|sup3|acute|micro|para|middot|cedil|sup1|ordm|raquo|frac14|frac12|frac34|iquest|Agrave|Aacute|Acirc|Atilde|Auml|Aring|AElig|Ccedil|Egrave|Eacute|Ecirc|Euml|Igrave|Iacute|Icirc|Iuml|ETH|Ntilde|Ograve|Oacute|Ocirc|Otilde|Ouml|times|Oslash|Ugrave|Uacute|Ucirc|Uuml|Yacute|THORN|szlig|agrave|aacute|acirc|atilde|auml|aring|aelig|ccedil|egrave|eacute|ecirc|euml|igrave|iacute|icirc|iuml|eth|ntilde|ograve|oacute|ocirc|otilde|ouml|divide|oslash|ugrave|uacute|ucirc|uuml|yacute|thorn|yuml|OElig|oelig|Scaron|scaron|Yuml|fnof|circ|tilde|Alpha|Beta|Gamma|Delta|Epsilon|Zeta|Eta|Theta|Iota|Kappa|Lambda|Mu|Nu|Xi|Omicron|Pi|Rho|Sigma|Tau|Upsilon|Phi|Chi|Psi|Omega|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|sigmaf|sigma|tau|upsilon|phi|chi|psi|omega|thetasym|upsih|piv|ensp|emsp|thinsp|zwnj|zwj|lrm|rlm|ndash|mdash|lsquo|rsquo|sbquo|ldquo|rdquo|bdquo|dagger|Dagger|bull|hellip|permil|prime|Prime|lsaquo|rsaquo|oline|frasl|euro|image|weierp|real|trade|alefsym|larr|uarr|rarr|darr|harr|crarr|lArr|uArr|rArr|dArr|hArr|forall|part|exist|empty|nabla|isin|notin|ni|prod|sum|minus|lowast|radic|prop|infin|ang|and|or|cap|cup|int|there4|sim|cong|asymp|ne|equiv|le|ge|sub|sup|nsub|sube|supe|oplus|otimes|perp|sdot|lceil|rceil|lfloor|rfloor|lang|rang|loz|spades|clubs|hearts|diams);/mg,
@@ -694,12 +717,16 @@
           return comments.test(text) ? "<span style=\"background-color: " + colors.comments + "\">" + text + "</span>"
                                      : text.split(tokens).map(function(text) {
             var coloredText;
-            if(events.globalSend.data.test(text) || events.localSend.data.test(text)) {
-              var spikes = events.globalSend.data.test(text) ? "^^" : "^",
-                  match  = events.globalSend.data.test(text) ? text.match(events.globalSend.data) : text.match(events.localSend.data);
-              coloredText = "<span style=\"background-color: " + colors.commands + "\">(" + spikes + match[1] + spikes + "</span>" +
-                      "<span style=\"background-color: " + colors.substitution.weak + "\">" + match[2] + "</span>" +
-                      "<span style=\"background-color: " + colors.commands + "\">" + spikes + ")</span>";
+            if(events.send.async.global.data.test(text) || events.send.async.local.data.test(text) ||
+               events.send. sync.global.data.test(text) || events.send. sync.local.data.test(text)) {
+              var spikes = events.send.async.global.data.test(text) ||
+                           events.send.sync. global.data.test(text) ? "^^" : "^",
+                  prefix = events.send.async.global.data.test(text) || events.send.async.local.data.test(text) ? "@" : "",
+                  match  = events.send.async.global.data.exec(text) || events.send.async.local.data.exec(text) ||
+                           events.send. sync.global.data.exec(text) || events.send. sync.local.data.exec(text);
+              coloredText = "<span style=\"background-color: " + colors.commands + "\">(" + prefix + spikes + match[1] +
+                      spikes + "</span>" + "<span style=\"background-color: " + colors.substitution.weak + "\">" +
+                      match[2] + "</span>" + "<span style=\"background-color: " + colors.commands + "\">" + spikes + ")</span>";
             } else {
               var color = substitution.strong[1].test(text) ? colors.substitution.strong
                                                             : colors[evals.test(text) ? "js" : "commands"];
@@ -947,29 +974,82 @@
         }); break;
  
         default:
+          
+          /* Sending synchronous events */
+        
           // An outgoing global event with data
-          if(events.globalSend.data.test(batch[0])) (function(matches) {
-            globalSend(matches[1], evaluate(matches[2]));
-            next();
-          })( batch[0].match(events.globalSend.data) );
+          if(events.send.sync.global.data.test(batch[0])) (function(matches) {
+            var done = false,
+                subscriptions = [
+                  globalSyncSend(matches[1], evaluate(matches[2]), callback),
+                  localSyncSend( matches[1], evaluate(matches[2]), callback)
+                ];
+            
+            function callback() {
+              if(done) return;
+              done = true;
+              subscriptions.forEach(function(unsubscribe) {
+                unsubscribe();
+              }); next();
+            }
+          })( batch[0].match(events.send.sync.global.data) );
            
           // An outgoing global event without data
-          else if(events.globalSend.nodata.test(batch[0])) (function(matches) {
-            globalSend(matches[1], "undefined");
-            next();
-          })( batch[0].match(events.globalSend.nodata) );
+          else if(events.send.sync.global.nodata.test(batch[0])) (function(matches) {
+            var done = false,
+                subscriptions = [
+                  globalSyncSend(matches[1], undefined, callback),
+                  localSyncSend( matches[1], undefined, callback)
+                ];
+            
+            function callback() {
+              if(done) return;
+              done = true;
+              subscriptions.forEach(function(unsubscribe) {
+                unsubscribe();
+              }); next();
+            }
+          })( batch[0].match(events.send.sync.global.nodata) );
              
           // An outgoing local event with data
-          else if(events.localSend.data.test(batch[0])) (function(matches) {
-            localSend(matches[1], evaluate(matches[2]));
-            next();
-          })( batch[0].match(events.localSend.data) );
+          else if(events.send.sync.local.data.test(batch[0])) (function(matches) {
+            localSyncSend(matches[1], evaluate(matches[2]), next);
+          })( batch[0].match(events.send.sync.local.data) );
            
           // An outgoing local event without data
-          else if(events.localSend.nodata.test(batch[0])) (function(matches) {
-            localSend(matches[1], "undefined");
+          else if(events.send.sync.local.nodata.test(batch[0])) (function(matches) {
+            localSyncSend(matches[1], undefined, next);
+          })( batch[0].match(events.send.sync.local.nodata) );
+        
+          /* Sending asynchronous events */
+        
+          // An outgoing global event with data
+          else if(events.send.async.global.data.test(batch[0])) (function(matches) {
+            globalAsyncSend(qualifiedName + dataPrefix + matches[1], evaluate(matches[2]));
+            localAsyncSend( qualifiedName + dataPrefix + matches[1], evaluate(matches[2]));
             next();
-          })( batch[0].match(events.localSend.nodata) );
+          })( batch[0].match(events.send.async.global.data) );
+           
+          // An outgoing global event without data
+          else if(events.send.async.global.nodata.test(batch[0])) (function(matches) {
+            globalAsyncSend(qualifiedName + dataPrefix + matches[1]);
+            localAsyncSend( qualifiedName + dataPrefix + matches[1]);
+            next();
+          })( batch[0].match(events.send.async.global.nodata) );
+             
+          // An outgoing local event with data
+          else if(events.send.async.local.data.test(batch[0])) (function(matches) {
+            localAsyncSend(qualifiedName + dataPrefix + matches[1], evaluate(matches[2]));
+            next();
+          })( batch[0].match(events.send.async.local.data) );
+           
+          // An outgoing local event without data
+          else if(events.send.async.local.nodata.test(batch[0])) (function(matches) {
+            localAsyncSend(qualifiedName + dataPrefix + matches[1]);
+            next();
+          })( batch[0].match(events.send.async.local.nodata) );
+          
+          /* Receiving events */
              
           // A level-triggered incoming event
           else if(events.receive.level.test(batch[0])) (function(matches) {
@@ -983,7 +1063,8 @@
           else if(events.receive.edge.test(batch[0]))
             waitFor(batch[0].match(events.receive.edge)[1]);
            
-          // A timeout command
+          /* A timeout command */
+          
           else setTimeout(perform, parseTime(command));
       }
     } else perform(function() {
@@ -1066,30 +1147,111 @@
           err("The following exception has been caught while executing the expression", str, ":", e);
         }
       }
-    } function globalSend(name, data) {
-      data = String(data);
-      ding.send(qualifiedName + name, data);
-      localSend(name, data);
-    } function localSend(name, data) {
+    } function globalAsyncSend(name, data) {
+      ding.send(name, String(data));
+    } function localAsyncSend(name, data) {
       new JBus.Node().send({
         to: {
-          group: qualifiedName + name
-        }, data: data
+          group: name
+        }, data: String(data)
       });
+    } function globalSyncSend(name, data, callback) {
+    
+      var done = false;
+      
+      // We wait for global received events
+      listenForGlobal(qualifiedName + receivedPrefix + name, function() {
+        if(done) return;
+        done = true;
+        callback();
+      });
+      
+      // We wait for global ready events
+      listenForGlobal(qualifiedName + readyPrefix + name, function() {
+        if(done) return;
+        done = true;
+        globalAsyncSend(qualifiedName + dataPrefix + name, data);
+      });      
+      
+      // We send an asynchronous global event
+      globalAsyncSend(qualifiedName + dataPrefix + name, data);
+      
+      return function() {
+        done = true;
+      };
+      
+    } function localSyncSend(name, data, callback) {
+    
+      var done = false;
+    
+      // We wait for local received events
+      listenForLocal(qualifiedName + receivedPrefix + name, function() {
+        if(done) return;
+        done = true;
+        callback();
+      });
+      
+      // We wait for local ready events
+      listenForLocal(qualifiedName + readyPrefix + name, function() {
+        if(done) return;
+        done = true;
+        localAsyncSend(qualifiedName + dataPrefix + name, data);
+      });
+      
+      // We send an asynchronous local event
+      localAsyncSend(qualifiedName + dataPrefix + name, data);
+      
+      return function() {
+        done = true;
+      };
+      
     } function waitFor(name) {
+      var done = false;
+    
+      // We start listening and announce our readiness
+      listenForGlobal(qualifiedName + dataPrefix + name, callback);
+      listenForLocal( qualifiedName + dataPrefix + name, callback);
+      ping(readyPrefix);
        
+      function callback(data) {
+        if(done) return;
+        done = true; 
+        
+        // We announce the reception
+        ping(receivedPrefix);
+        
+        // We move on
+        eventData = pastEvents[name] = data;
+        next();
+      }
+      
+      function ping(prefix) {      
+        globalAsyncSend(qualifiedName + prefix + name);
+        localAsyncSend( qualifiedName + prefix + name);
+      }
+      
+    } function listenForGlobal(name, callback) {
+    
       // Global listener
       var obj = {}, done = false;
-      obj[qualifiedName + name] = callback;
-      ding.listen(obj);
-       
+      obj[name] = function(data) {
+        if(done) return;
+        done = true;
+        unlisten();
+        callback(data);
+      }, unlisten = ding.listen(obj);
+      
+    } function listenForLocal(name, callback) {
+    
       // Local listener
       var node = new JBus.Node({
-        group: qualifiedName + name
-      }); node.listen({
+        group: name
+      }), done = false; node.listen({
         multicast: function(msg) {
           var data = msg.data.payload;
           if(checkNamelock()) {
+            if(done) return;
+            done = true;
             node.destroy();
             callback(data);
           } else if(debug.namelock) {
@@ -1098,13 +1260,7 @@
           }
         }
       });
-       
-      function callback(data) {
-        if(done) return;
-        done = true;
-        eventData = pastEvents[name] = data;
-        next();
-      }
+      
     }
   }
    
