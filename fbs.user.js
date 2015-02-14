@@ -116,6 +116,7 @@
       log(arg1, ...) - Log the arguments into the console (a generic message)
      warn(arg1, ...) - Log the arguments into the console (a warning)
       err(arg1, ...) - Log the arguments into the console (an error)
+              global - A reference to the userscript scope. Can be used to reference members using the bracket notation.
                   $w - A non-persistent window-local hash table
                   $s - A non-persistent superbatch-local hash table
                   $b - A non-persistent batch-local hash table
@@ -765,7 +766,7 @@
   }
      
   var $w = { /* The window-local hash table */ };
-  function parseAndExecute(string, preventNamelock) {
+  function parseAndExecute(string, preventNamelock, handle) {
     var $s = { /* The superbatch-local hash table */ };
     string.replace(/\n+/g, " ").split(rawCr).forEach(function(input) {
       var $b = { /* The batch-local hash table */ };
@@ -780,7 +781,14 @@
           $w: $w,
           $s: $s,
           $b: $b,
-          $i: $i || { /* The batch-instance-local hash table */ }
+          $i: $i || { /* The batch-instance-local hash table */ },
+          log: !handle ? log : function() {
+            log.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
+          }, warn: !handle ? warn : function() {
+            warn.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
+          }, err: !handle ? err : function() {
+            err.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
+          }
         });
       })();
     });
@@ -827,9 +835,10 @@
     document.querySelector("input[value=\"Odpovědět\"], input[value=\"Odpovědět všem\"]").click();
   }
  
-  function whisper(message) {
+  function whisper(message, context) {
     if(!message) return;
-    log(message);
+    with(context)
+      log(message);
   }
    
   function getMessage() {
@@ -984,7 +993,7 @@
         batch = [batch[0]].concat(tokenize(substitute(batch[0], "strong")), batch.slice(1));
       } else {
         // Otherwise just perform weak substitution and sent the result as plaintext
-        (silent?whisper:send)(substitute(batch[0], "weak").trim());
+        (silent?whisper:send)(substitute(batch[0], "weak").trim(), context);
       }
     });
     
@@ -1154,17 +1163,24 @@
 
     switch(lang) {
       case "js":
-      case "fbs": try {
+      case "fbs":
+        try {
           scriptLog("Loaded and executed");
           if(lang === "js") {
             with({
               Export: function(name, val) {
                 scriptLog("The member", name, "has been made global");
                 global[name] = val;
+              }, log: function() {
+                log.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
+              }, warn: function() {
+                warn.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
+              }, err: function() {
+                err.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
               }
             }) eval(script);
           } else {
-            parseAndExecute(script, true);
+            parseAndExecute(script, true, handle);
           }
         } catch(e) {
           scriptErr("An exception has been caught:", e);
