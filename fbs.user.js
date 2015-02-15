@@ -63,7 +63,7 @@
     Miscellaneous:
              (v) - Redirect all following messages to console.log
              (^) - Redirect all following messages to the current recipient (implicit)
-        (notify) - Notify the user. In the current implementation lets out a beeping sound (html5.audioContext dependent)
+        (notify) - Notify the user using the html5 notification
          (never) - Block indefinitely
         (repeat) - Repeats the current instance of the batch ( expands to (js)clone($i)(js)(never) )
          (at #1) - Wait until the specified point in time
@@ -146,9 +146,11 @@
                   $i - A non-persistent batch-instance-local hash table
                   
  preserveNewlines(s) - This function replaces all occurances of "\n" in s with `'\\n'`. This is necessary to prevent
-                       the removal of newlines from the string returned by strong substitution by the tokenizer.
+                       the removal of newlines in the tokenizer from the string returned by strong substitution.
            strong(s) - Returns "```" + s + "```"
              weak(s) - Returns   "`" + s + "`"
+             
+              beep() - Lets out a beeping sound (html5.audioContext dependent)
                    
                debug - The debug object contains the following values:
        warnings (true) - Controls, whether the warn() function prints any messages into the console
@@ -157,6 +159,7 @@
        require (false) - Logs information regarding the loading and execution of scripts using the require() and include()
                          functions into the console
          batch (false) - Logs information regarding the state of the executed batches into the console
+          time (false) - Logs information concerning the (at ...) command
  
   Name locking:
     Each input you execute is locked to the name of the current recipient.
@@ -266,8 +269,10 @@
         tokenizer: false,
         namelock:  false,
         require:   false,
-        batch:     false
-      }, ctx = new (window.audioContext || window.webkitAudioContext || (function() {
+        batch:     false,
+        time:      false
+      }, notification = (window.Notification || function() { /* A dummy notification constructor */ }),
+      ctx = new (window.audioContext || window.webkitAudioContext || (function() {
         // A dummy audioContext object
         this.createOscillator = function() {
           return {
@@ -761,8 +766,12 @@
      
   })();
  
-  function beep() { // Let us let out a beep
-  var osc = ctx.createOscillator();
+  function notify() {
+    new Notification(getCurrName());
+  }
+  
+  function beep() {
+    var osc = ctx.createOscillator();
       osc.type = 3;
       osc.connect(ctx.destination);
       osc.noteOn(0);
@@ -976,7 +985,7 @@
  
         case "^": silent = false; next(); break;
         case "v": silent = true;  next(); break;
-        case "notify": perform(beep); break;
+        case "notify": perform(notify); break;
         case "repeat":
           with(context) clone($i, pastEvents);
           // Fall-through
@@ -985,7 +994,9 @@
           var at = Date.parse(suffix) || parseHMS(suffix);
           if (isNaN(at)) {
             err(suffix, "specifies a malformed date.");
-          } else setTimeout(perform, at - now()); break;
+          } else {
+            timedWait(at);
+          } break;
            
         case "js": perform(function() {
           evaluate(evals.exec(batch[0])[1]);
@@ -1081,9 +1092,8 @@
           else if(events.receive.edge.test(batch[0]))
             waitFor(batch[0].match(events.receive.edge)[1]);
            
-          /* A timeout command */
-          
-          else setTimeout(perform, parseTime(command));
+          /* A timeout command */          
+          else timedWait(now() + parseTime(command));
       }
     } else perform(function() {
       // No command
@@ -1105,6 +1115,14 @@
       return !!document.querySelector(".mbs > .typing");
     } function seen() {
       return !!document.querySelector(".mbs > .seen");
+    }
+    
+    function timedWait(at) {
+      if(debug.time) {
+        log("Waiting until ", new Date(at));
+      } waitUntil(function() {
+        return now() >= at;
+      });
     }
  
     function getLastReplyId() {
@@ -1253,10 +1271,15 @@
       // Global listener
       var obj = {}, done = false;
       obj[name] = function(data) {
-        if(done) return;
-        done = true;
-        unlisten();
-        callback(data);
+        if(checkNamelock()) {
+          if(done) return;
+          done = true;
+          unlisten();
+          callback(data);
+        } else if(debug.namelock) {
+          log("A global event", name, "with data", data, "was received by the batch",
+          	batch, "but was not captured due to the active namelock.");
+        }
       }, unlisten = ding.listen(obj);
       
     } function listenForLocal(name, callback) {
@@ -1273,7 +1296,7 @@
             node.destroy();
             callback(data);
           } else if(debug.namelock) {
-            log("An event", name, "with data", data, "was received by the batch",
+            log("A local event", name, "with data", data, "was received by the batch",
             	batch, "but was not captured due to the active namelock.");
           }
         }
