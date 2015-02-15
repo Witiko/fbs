@@ -629,14 +629,14 @@
         color = backgroundColor = "transparent";
         zIndex = "998";
       }
-    } onkeydown = function(e) { // Display / Hide the console via Ctrl+~
+    } addEventListener("keydown", function(e) { // Display / Hide the console via Ctrl+~
       if(hidden && !/\/messages\//.test(location.pathname)) return;
       if((e.keyCode === 186 || e.keyCode == 59 || e.keyCode == 192) && e.ctrlKey) {
         input.style.display =
         highlighter.style.display = (hidden = !hidden)?"none":"block";
         placeCaretAtEnd(input);
       }
-    }; input.onkeydown = function(e) {
+    }, false); input.onkeydown = function(e) {
       if(e.keyCode === 13 && !e.shiftKey) return false;
     }; input.onkeyup = function(e) {
       if(e.keyCode === 13 && !e.shiftKey) { // Process the queue
