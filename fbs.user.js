@@ -159,8 +159,6 @@
                   $b - A non-persistent batch-local hash table
                   $i - A non-persistent batch-instance-local hash table
                   
- preserveNewlines(s) - This function replaces all occurances of "\n" in s with `'\\n'`. This is necessary to prevent
-                       the removal of newlines in the tokenizer from the string returned by strong substitution.
            strong(s) - Returns "```" + s + "```"
              weak(s) - Returns   "`" + s + "`"
              
@@ -1453,11 +1451,7 @@
     }
   }
   
-  /* Convenience strong-substitution functions */
-  function preserveNewlines(str) {
-    return str.replace( /\n/g, weak("'\\n'") );
-  }
-  
+  /* Convenience strong-substitution functions */7
   function strong(str) {
     return "```" + str + "```";
   }
