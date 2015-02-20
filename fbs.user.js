@@ -4,7 +4,6 @@
 // @include        http*://www.facebook.com/messages/*
 // @require        http://tiny.cc/jBus
 // @require        http://tiny.cc/dingjs
-// @downloadURL    https://www.dropbox.com/s/5eet5uqk54xdwlc/fbs.user.js?dl=1
 // @grant          GM_xmlhttpRequest
 // @version        1.11
 // ==/UserScript==
