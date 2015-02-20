@@ -63,6 +63,12 @@
     Miscellaneous:
              (v) - Redirect all following messages to console.log
              (^) - Redirect all following messages to the current recipient (implicit)
+        (freeze) - Freezes all operation of the script.
+      (unfreeze) - Unfreezes the operation of the script.
+      
+                     Note: When executing a new superbatch, the (unfreeze) command needs to be the first blocking command
+                           in the batch prior to any messages. Otherwise the batch will block indefinitely due to the freeze.
+      
         (notify) - Notify the user using the html5 notification
          (never) - Block indefinitely
         (repeat) - Repeats the current instance of the batch ( expands to (js)clone($i)(js)(never) )
@@ -163,6 +169,7 @@
                debug - The debug object contains the following values:
        warnings (true) - Controls, whether the warn() function prints any messages into the console
      tokenizer (false) - Logs the activity of the tokenizer into the console
+        freeze (false) - Logs information regarding the (freeze) and (unfreeze) commands into the console
       namelock (false) - Logs information regarding the name lock into the console
        require (false) - Logs information regarding the loading and execution of scripts using the require() and include()
                          functions into the console
@@ -202,12 +209,11 @@
               the mode ( See commands (v) and (^) ). Trimming means that white and newline characters at the beginning
               and the end of the string are removed. 
          
- 
 */
 
 (function(global) {
   if(window.top != window && window.top != window.unsafeWindow) return;
-  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(@?\^\^[^:^]+?\^\^.+?\^\^\)|\(@?\^\^[^:^]+?(?:\^\^)?\)|\(@?\^[^:^]+?\^.+?\^\)|\(@?\^[^:^]+?(?:\^)?\)|\(::?[^:^]+?\)|\(repeat\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(notify\)|\(replied\)|\(changed\)|\(posted\)|\(!?(?:(?:on|off)line|mobile)\)/,
+  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(@?\^\^[^:^]+?\^\^.+?\^\^\)|\(@?\^\^[^:^]+?(?:\^\^)?\)|\(@?\^[^:^]+?\^.+?\^\)|\(@?\^[^:^]+?(?:\^)?\)|\(::?[^:^]+?\)|\(repeat\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(notify\)|\(replied\)|\(changed\)|\(posted\)|\((?:un)?freeze\)|\(!?(?:(?:on|off)line|mobile)\)/,
       events = {
         send: {
           async: {
@@ -272,6 +278,7 @@
       }, debug = {
         warnings:  true,
         tokenizer: false,
+          freeze:  false,
         namelock:  false,
         require:   false,
         batch:     false,
@@ -586,7 +593,7 @@
         "o.O": /Emotikona confused/g,
          ":3": /Emotikona colonthree/g,
         "(y)": /Emotikona like/g
-      };
+      }, frozen = false;
    
   log("fbs running");
  
@@ -990,6 +997,18 @@
  
         case "^": silent = false; next(); break;
         case "v": silent = true;  next(); break;
+        case "freeze":
+          frozen = true;
+          if (debug.freeze)
+            log("fbs is now frozen.");
+          perform();
+          break;
+        case "unfreeze":
+          frozen = false;
+          if (debug.freeze)
+            log("fbs is no longer frozen.");
+          next();
+          break;
         case "notify": perform(notify); break;
         case "repeat":
           with(context) clone($i, pastEvents);
@@ -1142,6 +1161,10 @@
     }
 
     function checkNamelock() {
+      // We check the freeze flag
+      if(frozen) return false;
+      
+      // We check the name lock
       if(!preventNamelock && getCurrName() !== name) {
         if(!namelocked) {
           if(debug.namelock)
