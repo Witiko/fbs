@@ -812,7 +812,10 @@
             log("fbs is no longer frozen.");
           next();
           break;
-        case "notify": perform(notify); break;
+        case "notify":
+          notify();
+          next();
+          break;
         case "repeat":
           with(context) clone($i, pastEvents);
           // Fall-through
