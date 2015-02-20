@@ -69,8 +69,9 @@
          (at #1) - Wait until the specified point in time
                  - If isNaN(Date.parse("#1")), then a HH:MM:SS format is assumed (see function parseHMS for details)
                  - If isNaN(parseHMS("#1")), then an exception is logged and (at #1) expands to (never)
-   (/...) (//...
-    or (//...//) - These commands are ignored (comments). When inlining javascript calls in the following form:
+         (/...) or (/...
+         (//... or (//...//)
+      or (///... - These commands are ignored (comments). When inlining javascript calls in the following form:
     
                      string.test(/regexp/)
                     
@@ -90,7 +91,11 @@
     or (js)...   - Execute the enclosed javascript code. This command always takes precedence during the tokenization,
                    e.g. (js)...(command)...(js) always becomes one (js)...(js) token rather that a (js)... message,
                    (command) and a ...(js) message.
-          `...`  - Execute the enclosed javascript code and substitute the command for its return value. (weak)
+                   
+          `...`  - Execute the enclosed javascript code and substitute the command for its return value converted to string. (weak)
+          
+                     Note: If the expression evaluates to undefined, the substition expands to "" rather than to "undefined".
+          
                    Weak substitution is only allowed within messages.
                    Weak substitution is non-recursive -- its return value is always regarded as a message.
                     
@@ -100,7 +105,10 @@
                      This command will not be executed, but printed: `"(" + "never" + ")"`
                        ~> This command will not be executed, but printed: (never)
                     
-       ```...``` - Execute the enclosed javascript code and substitute the command for its return value. (strong)
+       ```...``` - Execute the enclosed javascript code and substitute the command for its return value converted to string. (strong)
+       
+                     Note: If the expression evaluates to undefined, the substition expands to "" rather than to "undefined".
+                
                    Strong substitution is allowed anywhere.
                    Strong substitution is recursive -- its return value is always retokenized.
                     
@@ -174,22 +182,10 @@
     The input tokenization is performed in three steps (see function tokenize):
      
       1) In the first step, the superbatch is split into batches delimited by (;). For each batch:
-        a) Replace every sequence of one or more new-line character with a space character (0x20).
-
-          Note: This is an important detail. The rest of the tokenizer is not newline-aware and the only way to include a
-                newline character in the input is by circumventing the tokenizer altogether by using weak substitution as
-                follows (as provisioned by the preserveNewlines() function):
-
-                  This line will be `"\n"` split in the middle.
-
-                This is particularly important when inlining JavaScript via the (js) command or substitution. Due to the
-                discarded newline characters, you need to end each invocation with a semicolon. This doesn't apply when
-                evaluating JavaScript files directly using eval(), require() and the like.
-
-        b) Split the batch into comments and non-comments. Discard the comments.
-        c) Split non-comments into strong substitution / commands and messages.
-        d) Concatenate adjoining strong substitutions and messages into compound messages.
-        e) Execute the resulting string of messages and commands.
+        a) Split the batch into comments and non-comments. Discard the comments.
+        b) Split non-comments into strong substitution / commands and messages.
+        c) Concatenate adjoining strong substitutions and messages into compound messages.
+        d) Execute the resulting string of messages and commands.
      
   Execution:     
       1) If the token is a command, the command is performed.
@@ -202,8 +198,9 @@
            
         b) Otherwise:
            i) If the message contains a weak substitution, the substitution is performed.
-          ii) The resulting string is sent to the current recipient or logged to the console depending on the mode.
-              ( See commands (v) and (^) )
+          ii) The resulting string is trimmed and sent to the current recipient or logged to the console depending on
+              the mode ( See commands (v) and (^) ). Trimming means that white and newline characters at the beginning
+              and the end of the string are removed. 
          
  
 */
@@ -234,6 +231,14 @@
           level:  /\(::([^:^]+?)\)/,
           edge:    /\(:([^:^]+?)\)/
         }
+      }, newlines = {
+        encode: function(str) {
+          return str ? str.replace(/~~/g, "~~E").
+                           replace(/\n/g, "~~M") : str;
+        }, decode: function(str) {
+          return str ? str.replace(/~~M/g, "\n").
+                           replace(/~~E/g, "~~") : str;
+        }
       }, commands = new RegExp("(" + rawCommands.source + ")"),
       evals = /\(js\)(.*?)(?:\(js\)|$)/,
       gEvals = new RegExp(evals.source, "g"),
@@ -245,7 +250,7 @@
         strong: [ /(```.*?```)/, /(```(.*?)```)/, /```.*?```/ ]
       }, rawTokens = new RegExp(substitution.strong[2].source + "|" + rawCommands.source),
       tokens = new RegExp("(" + rawTokens.source + ")"),
-      comments = /(\(\/\/.*?(?:\/\/\)|$)|\(\/.*?\))/g,
+      comments = /(\(\/\/\/.*|\(\/\/.*?(?:\/\/\)|$)|\(\/.*?(?:\)|$))/g,
       hms = /(\d{0,2})(?::(\d{0,2})(?::(\d{0,2}))?)?/,
       units = /(Y|M|d|h|ms|m|s)/,
       unitValues = {
@@ -822,7 +827,7 @@
   var $w = { /* The window-local hash table */ };
   function parseAndExecute(string, preventNamelock, handle) {
     var $s = { /* The superbatch-local hash table */ };
-    string.replace(/\n+/g, " ").split(rawCr).forEach(function(input) {
+    newlines.encode(string).split(rawCr).forEach(function(input) {
       var $b = { /* The batch-local hash table */ };
       var batch = tokenize(input);
       (function exec($i, pastEvents) {   // v Name locking
@@ -851,7 +856,7 @@
   function tokenize(string) {
     
     // Remove comments and tokenize the input into commands, messages and strong substitutions
-    var batch = mapTwo(string.replace(/\n+/g, " ").replace(comments, "").split(tokens).filter(function(s) {
+    var batch = mapTwo(string.replace(comments, "").split(tokens).filter(function(s) {
       return s.trim();
     }), function(a, b) {
       // Aggregate adjoining messages and strong substitutions
@@ -1102,7 +1107,7 @@
         batch = [batch[0]].concat(tokenize(substitute(batch[0], "strong")), batch.slice(1));
       } else {
         // Otherwise just perform weak substitution and sent the result as plaintext
-        (silent?whisper:send)(substitute(batch[0], "weak").trim(), context);
+        (silent?whisper:send)(newlines.decode(substitute(batch[0], "weak")).trim(), context);
       }
     });
     
@@ -1178,9 +1183,11 @@
     } function evaluate(str) {
       with(context) {
         try {
-          return eval(str);
+          var retVal = eval(newlines.decode(str));
+          return retVal === undefined ? "" :  newlines.encode(String(retVal));
         } catch(e) {
           err("The following exception has been caught while executing the expression", str, ":", e);
+          return "";
         }
       }
     } function globalAsyncSend(name, data) {
