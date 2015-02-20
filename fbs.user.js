@@ -701,7 +701,7 @@
   function send(message) {
     if(!message) return;
     setMessage(message);
-    document.querySelector("input[value=\"Odpovědět\"], input[value=\"Odpovědět všem\"]").click();
+    document.getElementById("u_0_r").click();
   }
  
   function whisper(message, context) {
@@ -933,9 +933,7 @@
         if (settings.newlines.trimmed)
           message = message.trim();
         if (settings.newlines.TeXLike)
-          message = message.replace(/\n\s+\n/g, "\n\n").
-                            replace(/([^\n]|^)\n([^\n]|$)/g, "$1 $2").
-                            replace(/[ \f\r\t\v​\u00a0\u1680​\u180e\u2000​\u2001\u2002​\u2003\u2004\u2005\u2006​\u2007\u2008​\u2009\u200a​\u2028\u2029​\u202f\u205f​\u3000]+/g, " ");
+          message = TeXLike(message);
         (silent?whisper:send)(message, context);        
       }
     });
@@ -1245,31 +1243,20 @@
       return "";
     }
   }
-   
-  function editRc() {
-    log("editing fbsrc");
-    setMessage(localStorage.fbsrc || "");
-    var checkbox = Array.prototype.filter.call(document.getElementsByTagName("span"), function(el) {
-      return /Odeslat stisknutím klávesy Enter/i.test(el.textContent);
-    })[0].parentElement; checkbox.click(); checkbox.click();
-    var checked = checkbox.getAttribute("aria-checked") == "true";
-    if (checked) checkbox.click();
-    document.querySelector(MESSAGE_SELECTOR).ondblclick = function(e) {
-      log("fbsrc stored");
-      localStorage.fbsrc = getMessage();
-      clearMessage();
-      if (checked) checkbox.click();
-      document.querySelector(MESSAGE_SELECTOR).ondblclick = null;
-    }
+  
+  function TeXLike() {
+    return str.replace(/\s*\n\s+\n\s*/g, "\n\n").
+               replace(/([^\n]|^)\n([^\n]|$)/g, "$1 $2").
+               replace(/[ \f\r\t\v​\u00a0\u1680​\u180e\u2000​\u2001\u2002​\u2003\u2004\u2005\u2006​\u2007\u2008​\u2009\u200a​\u2028\u2029​\u202f\u205f​\u3000]+/g, " ");
   }
   
   /* Convenience strong-substitution functions */7
   function strong(str) {
     return "```" + str + "```";
-  }
-  
-  function weak(str) {
+  } function weak(str) {
     return "`" + str + "`";
+  } function command(str) {
+    return "(" + str + ")";
   }
    
   function log() {
