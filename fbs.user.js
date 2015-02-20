@@ -72,19 +72,19 @@
           strong:     "violet",
         }, commands:  "#00f",
         comments:     "orange"
-      }, debug = {
-        warnings:  true,
-        tokenizer: false,
-        freeze:    false,
-        namelock:  false,
-        require:   false,
-        batch:     false,
-        time:      false
       }, settings = {
         freezeOnError: false,
         newlines: {
-          trimmed: true,
-          TeXLike: false
+          trimmed:     true,
+          TeXLike:     false
+        }, debug: {
+          warnings:    true,
+          tokenizer:   false,
+          freeze:      false,
+          namelock:    false,
+          require:     false,
+          batch:       false,
+          time:        false
         }
       }, notification = (window.Notification || function() { /* A dummy notification constructor */ }),
       ctx = new (window.audioContext || window.webkitAudioContext || (function() {
@@ -641,7 +641,7 @@
       var $b = { /* The batch-local hash table */ };
       var batch = tokenize(input);
       (function exec($i, pastEvents) {   // v Name locking
-        if(preventNamelock && debug.namelock)
+        if(preventNamelock && settings.debug.namelock)
           log("The batch", batch, "has been executed without namelocking");
         execute(batch, preventNamelock, pastEvents || { /* The past captured events */ }, false, {
           // Context data / methods available for the user in js substitution / execution
@@ -678,7 +678,7 @@
       }
     });
     
-    if(debug.tokenizer)
+    if(settings.debug.tokenizer)
       log("Tokenizer:", string, "->", batch);
     
     return batch;
@@ -802,13 +802,13 @@
         case "v": silent = true;  next(); break;
         case "freeze":
           frozen = true;
-          if (debug.freeze)
+          if (settings.debug.freeze)
             log("fbs is now frozen.");
           perform();
           break;
         case "unfreeze":
           frozen = false;
-          if (debug.freeze)
+          if (settings.debug.freeze)
             log("fbs is no longer frozen.");
           next();
           break;
@@ -950,7 +950,7 @@
     }
     
     function timedWait(at) {
-      if(debug.time) {
+      if(settings.debug.time) {
         log("Waiting until ", new Date(at));
       } waitUntil(function() {
         return now() >= at;
@@ -975,13 +975,13 @@
       // We check the name lock
       if(!preventNamelock && getCurrName() !== name) {
         if(!namelocked) {
-          if(debug.namelock)
+          if(settings.debug.namelock)
             log("The batch ", batch, " for ", name, " was name-locked.");
           namelocked = true;
         } return false;
       } else {
         if(namelocked) {
-          if(debug.namelock)
+          if(settings.debug.namelock)
             log("The batch ", batch, " for ", name, " was name-unlocked.");
           namelocked = false;
         } return true;
@@ -1001,7 +1001,7 @@
         }
       }, DOWHEN_INTERVAL);
     } function next() {
-      if(debug.batch)
+      if(settings.debug.batch)
         log("Batch:", batch, "->", batch.slice(1));
       execute(batch.slice(1), preventNamelock, pastEvents, silent, context, eventData);
     } function substitute(text, type) {
@@ -1114,7 +1114,7 @@
           done = true;
           unlisten();
           callback(data);
-        } else if(debug.namelock) {
+        } else if(settings.debug.namelock) {
           log("A global event", name, "with data", data, "was received by the batch",
           	batch, "but was not captured due to the active namelock.");
         }
@@ -1133,7 +1133,7 @@
             done = true;
             node.destroy();
             callback(data);
-          } else if(debug.namelock) {
+          } else if(settings.debug.namelock) {
             log("A local event", name, "with data", data, "was received by the batch",
             	batch, "but was not captured due to the active namelock.");
           }
@@ -1186,7 +1186,7 @@
     if(requiredScripts.indexOf(url) == -1) {
       requiredScripts.push(url);
       include(url, lang);
-    } else if(debug.require) {
+    } else if(settings.debug.require) {
       warn("Script", url, "was required again, ignoring.");
     }
   }
@@ -1227,7 +1227,7 @@
     }    
     
     function scriptLog() {
-      if(debug.require)
+      if(settings.debug.require)
         log.apply(this, ["Script", handle, ":"].concat([].slice.call(arguments, 0)));
     } function scriptErr() {
       err.apply(this, ["Script", handle, ":"].concat([].slice.call(arguments, 0)));
@@ -1244,10 +1244,10 @@
     }
   }
   
-  function TeXLike() {
+  function TeXLike(str) {
     return str.replace(/\s*\n\s+\n\s*/g, "\n\n").
                replace(/([^\n]|^)\n([^\n]|$)/g, "$1 $2").
-               replace(/[ \f\r\t\v​\u00a0\u1680​\u180e\u2000​\u2001\u2002​\u2003\u2004\u2005\u2006​\u2007\u2008​\u2009\u200a​\u2028\u2029​\u202f\u205f​\u3000]+/g, " ");
+               replace(/[ \f\r\t\v\u00a0\u1680\u180e\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]+/g, " ");
   }
   
   /* Convenience strong-substitution functions */7
@@ -1262,7 +1262,7 @@
   function log() {
     console.log.apply(console, [].slice.call(arguments, 0));
   } function warn() {
-    if(debug.warnings)
+    if(settings.debug.warnings)
       log.apply(this, ["WARNING:"].concat([].slice.call(arguments, 0)));
   } function err() {
     log.apply(this, ["ERROR:"].concat([].slice.call(arguments, 0)));
