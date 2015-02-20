@@ -9,206 +9,6 @@
 // @version        1.11
 // ==/UserScript==
 
-/*
- 
-  Input: <Message1/Command1><Message2/Command2> ... <MessageN/CommandN>(;)
-         <Message1/Command1><Message2/Command2> ... <MessageN/CommandN>(;)
-         <Message1/Command1><Message2/Command2> ... <MessageN/CommandN>
-         
-         The entire input is called a superbatch.
-         Each of the sections of a superbatch delimited by (;) is processed in parallel to the others and is called a batch.
-         Each batch is composed of messages, commands, comments and substitutions, whose meaning is described below.
-         Batches can be instantiated several times and run in parallel using the clone() JavaScript call.
- 
-  Commands:
-    Responding to actions:
-          (seen) - Wait until the previous message has been marked as seen
-       (replied) - Wait until the recipient has replied to you (gets consumed, when the sender of the last message isn't you)
-        (posted) - Wait until the recipient has posted a message (gets consumed, when a new message is received)
-       (changed) - Wait until the last message in the chat has changed (be it because of you oor the recipient)
-        (typing) - Wait until the recipient has started typing to you
-       (typing!) - Wait until the recipient has started typing to you / posted a message
-           (any) - Wait until the recipient has started typing to you / posted a message / seen the previous message
- 
-    Responding to states:
-        (online) - Wait until the recipient has gone online
-       (!online) - Wait until the recipient is no longer online
-        (mobile) - Wait until the recipient has gone mobile
-       (!mobile) - Wait until the recipient is no longer mobile
-       (offline) - Wait until the recipient has gone offline
-      (!offline) - Wait until the recipient is no longer offline
-       
-  User-defined events:
-        (^EVENT)
-     or (^EVENT^)  - Emit an event named EVENT in the current window passing "undefined" as the message. Blocks until received.
-    (^EVENT^DATA^) - Emit an event named EVENT in the current window passing String(eval("DATA")) as the message.
-                     Blocks until received.
-       (^^EVENT)
-    or (^^EVENT^^) - Emit an event named EVENT in all open windows passing "undefined" as the message. Blocks until received.
- (^^EVENT^^DATA^^) - Emit an event named EVENT in all open windows passing String(eval("DATA")) as the message.
-                     Blocks until received.
- 
-        (@^EVENT)
-     or (@^EVENT^) - Same as (^EVENT) or (^EVENT^). The call, however, doesn't block.
-   (@^EVENT^DATA^) - Same as (^EVENT^DATA^). The call, however, doesn't block.
-      (@^^EVENT)
-   or (@^^EVENT^^) - Same as (^^EVENT) or (^^EVENT^^). The call, however, doesn't block.
-(@^^EVENT^^DATA^^) - Same as (^^EVENT^^DATA^^). The call, however, doesn't block.
- 
-        (:EVENT)   - Wait until the event named EVENT has occured in the current window and capture it
-                     Edge-triggered -- waits until the event occurs
-       (::EVENT)   - Wait until the event named EVENT has occured in the current window and capture it
-                     Level-triggered -- returns immediately, if the event has already been captured in the current batch instance
- 
-    Miscellaneous:
-             (v) - Redirect all following messages to console.log
-             (^) - Redirect all following messages to the current recipient (implicit)
-        (freeze) - Freezes all operation of the script.
-      (unfreeze) - Unfreezes the operation of the script.
-      
-                     Note: When executing a new superbatch, the (unfreeze) command needs to be the first blocking command
-                           in the batch prior to any messages. Otherwise the batch will block indefinitely due to the freeze.
-      
-        (notify) - Notify the user using the html5 notification
-         (never) - Block indefinitely
-        (repeat) - Repeats the current instance of the batch ( expands to (js)clone($i)(js)(never) )
-         (at #1) - Wait until the specified point in time
-                 - If isNaN(Date.parse("#1")), then a HH:MM:SS format is assumed (see function parseHMS for details)
-                 - If isNaN(parseHMS("#1")), then an exception is logged and (at #1) expands to (never)
-         (/...) or (/...
-         (//... or (//...//)
-      or (///... - These commands are ignored (comments). When inlining javascript calls in the following form:
-    
-                     string.test(/regexp/)
-                    
-                   Put a space after the opening bracket to prevent erroneous interpretation.
- 
-   (<#1><unit1> <#2><unit2> ...
-    <#N><unitN>) - Wait \sum_{1\leq I\leq N}#i <unitI>, where <unitI>\in:
-                 Y - Years
-                 M - Months
-                 d - Days
-                 h - Hours
-                 m - Minutes
-                 s - Seconds
-                ms - Milliseconds
-    
-    (js)...(js)
-    or (js)...   - Execute the enclosed javascript code. This command always takes precedence during the tokenization,
-                   e.g. (js)...(command)...(js) always becomes one (js)...(js) token rather that a (js)... message,
-                   (command) and a ...(js) message.
-                   
-          `...`  - Execute the enclosed javascript code and substitute the command for its return value converted to string. (weak)
-          
-                     Note: If the expression evaluates to undefined, the substition expands to "" rather than to "undefined".
-          
-                   Weak substitution is only allowed within messages.
-                   Weak substitution is non-recursive -- its return value is always regarded as a message.
-                    
-                   Examples:                  
-                     Did you know that 1 + 2 = `1 + 2`?  ~>  Did you know that 1 + 2 = 3?
-                     Hey, `getCurrName()`, I am `getMyName()`.  ~>  Hey, Karel, I am Vít.
-                     This command will not be executed, but printed: `"(" + "never" + ")"`
-                       ~> This command will not be executed, but printed: (never)
-                    
-       ```...``` - Execute the enclosed javascript code and substitute the command for its return value converted to string. (strong)
-       
-                     Note: If the expression evaluates to undefined, the substition expands to "" rather than to "undefined".
-                
-                   Strong substitution is allowed anywhere.
-                   Strong substitution is recursive -- its return value is always retokenized.
-                    
-                   Examples:
-                     (```1 + 2```s)You've got five seconds to tell me where I am and three have just passed.
-                     This will get posted.```condition ? "(never)"```And this will conditionally not get posted.
-                     
-                     (js)$i.count = 1; $i.expand = function() {
-                       return weak("$i.count++") + "(2s)" + strong("$i.expand()");
-                     }(js)```$i.expand()``` (// Will keep on counting ad-infinitum
-                    
-                   The following additional methods and variables are available for execution, substitution and event sending:
- 
-  include(lang, url) - Synchronously loads and executes a script at the given url. The language of the script is specified
-                       by the lang parameter, which can be either "js" (JavaScript) or "fbs" (Facebook Batch Sender). If no
-                       language is specified, it will be guessed from the suffix of the specified file. In case of a
-                       JavaScript script, a function Export(name, value) is made available for the script to export functions
-                       and data.
-                       
-  require(lang, url) - Similar to include, but ignores the invocation, if the script at the given url has already been loaded.
-  
-           curl(url) - Downloads the resource at the given url via the GET request and returns its data. You can detect failure
-                       by testing for empty string as a return value. If you need more control, use the Greasemonkey
-                       GM_xmlhttpRequest function in stead.
-                       
-       getCurrName() - The name of the current chat window
-         getMyName() - The first name of the sender
-           eventData - The data of the last captured event
-      getLastReply() - The last chat message
-  getLastReplyName() - The name of the last chat message sender
-          clone(obj) - Create a new instance of the current batch, whose $i hash table is obj
-            editRc() - Paste the entire fbsrc into the message box
-                       Double-clicking the message box saves the new fbsrc
-                       
-      log(arg1, ...) - Log the arguments into the console (a generic message)
-     warn(arg1, ...) - Log the arguments into the console (a warning)
-      err(arg1, ...) - Log the arguments into the console (an error)
-      
-              global - A reference to the userscript scope. Can be used to reference members using the bracket notation.
-                  $w - A non-persistent window-local hash table
-                  $s - A non-persistent superbatch-local hash table
-                  $b - A non-persistent batch-local hash table
-                  $i - A non-persistent batch-instance-local hash table
-                  
-           strong(s) - Returns "```" + s + "```"
-             weak(s) - Returns   "`" + s + "`"
-             
-              beep() - Lets out a beeping sound (html5.audioContext dependent)
-                   
-               debug - The debug object contains the following values:
-       warnings (true) - Controls, whether the warn() function prints any messages into the console
-     tokenizer (false) - Logs the activity of the tokenizer into the console
-        freeze (false) - Logs information regarding the (freeze) and (unfreeze) commands into the console
-      namelock (false) - Logs information regarding the name lock into the console
-       require (false) - Logs information regarding the loading and execution of scripts using the require() and include()
-                         functions into the console
-         batch (false) - Logs information regarding the state of the executed batches into the console
-          time (false) - Logs information concerning the (at ...) command
- 
-  Name locking:
-    Each input you execute is locked to the name of the current recipient.
-    Input execution will be paused each time you switch to another user.
-    Fbsrc and fbs scripts loaded via the require() function are exempt from this rule.
- 
-  Fbsrc:
-    You can store a superbatch in localStorage.fbsrc.
-    These inputs will be automatically executed (without name locking) each time the userscript is loaded.
-   
-  Tokenization:
-    The input tokenization is performed in three steps (see function tokenize):
-     
-      1) In the first step, the superbatch is split into batches delimited by (;). For each batch:
-        a) Split the batch into comments and non-comments. Discard the comments.
-        b) Split non-comments into strong substitution / commands and messages.
-        c) Concatenate adjoining strong substitutions and messages into compound messages.
-        d) Execute the resulting string of messages and commands.
-     
-  Execution:     
-      1) If the token is a command, the command is performed.
-      2) If the token is a message, then:
-        a) If the message contains a strong substitution, the substitution is performed, the resulting string
-           is retokenized as if it were a batch, the tokens are put in place of the original token and then executed.
-           
-           Note: Since the result of the strong substitution is retokenized as if it were a batch (Tokenization > 1a),
-                 the (;) separator has no meaning and will be interpreted as text.
-           
-        b) Otherwise:
-           i) If the message contains a weak substitution, the substitution is performed.
-          ii) The resulting string is trimmed and sent to the current recipient or logged to the console depending on
-              the mode ( See commands (v) and (^) ). Trimming means that white and newline characters at the beginning
-              and the end of the string are removed. 
-         
-*/
-
 (function(global) {
   if(window.top != window && window.top != window.unsafeWindow) return;
   var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(@?\^\^[^:^]+?\^\^.+?\^\^\)|\(@?\^\^[^:^]+?(?:\^\^)?\)|\(@?\^[^:^]+?\^.+?\^\)|\(@?\^[^:^]+?(?:\^)?\)|\(::?[^:^]+?\)|\(repeat\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(notify\)|\(replied\)|\(changed\)|\(posted\)|\((?:un)?freeze\)|\(!?(?:(?:on|off)line|mobile)\)/,
@@ -276,11 +76,17 @@
       }, debug = {
         warnings:  true,
         tokenizer: false,
-          freeze:  false,
+        freeze:    false,
         namelock:  false,
         require:   false,
         batch:     false,
         time:      false
+      }, settings = {
+        freezeOnError: false,
+        newlines: {
+          trimmed: true,
+          TeXLike: false
+        }
       }, notification = (window.Notification || function() { /* A dummy notification constructor */ }),
       ctx = new (window.audioContext || window.webkitAudioContext || (function() {
         // A dummy audioContext object
@@ -1119,12 +925,19 @@
       }
     } else perform(function() {
       // No command
-      if(substitution.strong[0].test(batch[0])) {
+      if (substitution.strong[0].test(batch[0])) {
         // If there is a strong substitution, perform it and retokenize the output
         batch = [batch[0]].concat(tokenize(substitute(batch[0], "strong")), batch.slice(1));
       } else {
         // Otherwise just perform weak substitution and sent the result as plaintext
-        (silent?whisper:send)(newlines.decode(substitute(batch[0], "weak")).trim(), context);
+        var message = newlines.decode(substitute(batch[0], "weak"));
+        if (settings.newlines.trimmed)
+          message = message.trim();
+        if (settings.newlines.TeXLike)
+          message = message.replace(/\n\s+\n/g, "\n\n").
+                            replace(/([^\n]|^)\n([^\n]|$)/g, "$1 $2").
+                            replace(/[ \f\r\t\v​\u00a0\u1680​\u180e\u2000​\u2001\u2002​\u2003\u2004\u2005\u2006​\u2007\u2008​\u2009\u200a​\u2028\u2029​\u202f\u205f​\u3000]+/g, " ");
+        (silent?whisper:send)(message, context);        
       }
     });
     
@@ -1467,6 +1280,8 @@
       log.apply(this, ["WARNING:"].concat([].slice.call(arguments, 0)));
   } function err() {
     log.apply(this, ["ERROR:"].concat([].slice.call(arguments, 0)));
+    if(settings.freezeOnError)
+      parseAndExecute("(freeze)");
   }
    
 })(this);
