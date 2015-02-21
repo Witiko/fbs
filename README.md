@@ -186,7 +186,11 @@ The following additional methods and variables are available during JavaScript e
     * `freezeOnError` (`false`) – The `(freeze)` [command](#commands) is executed each time the `err()` function is called.
     * `newlines` – The newlines object contains the following values:
         * `trimmed` (`true`) – When true, the outgoing messages are trimmed, e.g. white spaces and newline characters at the beginning and at the end of the string are removed.
-        * `TeXLike` (`false`) – When true, one or more whitespace characters or a newline along with any adjacent whitespace characters are replaced with a single space, whereas two or more newlines surrounded by newlines and whitespaces are replaced with two newline characters signifying a paragraph.
+        * `TeXLike` (`false`) – When true:
+          * One or more whitespace characters or a newline along with any adjacent whitespace characters are replaced with a single space.
+          * Two or more newlines surrounded by newlines and whitespaces are replaced with two newline characters signifying a paragraph.
+          * `"---"` gets replaced with an em-dash (`"—"`) and `"--"` with an en-dash (`"–"`).
+          * `"..."` gets replaced with an ellipsis (`"…"`) and the leftmost space (`" "`) directly adjacent to the ellipsis gets replaced with a thin space (`" "`).
     * `debug` – The debug object contains the following values:
         * `warnings` (`true`) – When true, the `warn()` function prints messages into the console.
         * `tokenize` (`false`) – When true, the activity of the [tokenizer](#tokenization) gets logged into the console.
@@ -208,7 +212,6 @@ The following additional methods and variables are available during JavaScript e
   * `command(s)` – Returns `"(" + s + ")"`.
   * `weak(s)` – Returns ``"`" + s + "`"``.
   * `strong(s)` – Returns ````"```" + s + "```"````.
-  * `TeXLike(s)` – Formats the input string `s` as if `settings.newlines.TeXLike == true`.
 
 ### Miscellaneous
 
