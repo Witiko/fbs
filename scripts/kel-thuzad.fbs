@@ -1,0 +1,39 @@
+(/ A Kel'Thuzad bot)(js)
+  $s.prefix = "(3s)[Kel'Thuzad]: ";
+  $s.whitelist = $w.ktWhitelist; // Replace this with a RegExp
+  $s.responses = {
+    // Battlecries
+    "How naive! Don't you remember what happened to Uther?": /Light(\s+(sha|wi)|')ll\s+bring\s+victory/i,
+    "Really? Death it is, then.\nOr ...\nIs this a trick question?\nLooks like death for you!": /Victory\s+or\s+Death/i,
+    "Well, someone's soul shall be someone's.": /Your\s+soul(\s+(sha|wi)|')ll\s+be\s+mine/i,
+    "I most certainly did NOT. You barged into MY floating necropolis!": /You\s+asked\s+for\s+it/i,
+    "The wild? Then what are you doing in Naxxramas?": /I\s+must\s+protect\s+the\s+wild/i,
+    "Be my guest.": /Let\s+the\s+hunt\s+begin/i,
+    "You're fighting for a hammer? Ok then.": /For\s+Doomhammer/i,
+    "... and I will fight with huge minions and devastating spells. Good luck!": /I\s+will\s+fight\s+with\s+honor/i,
+    "Ok. I. Will.": /Watch\s+your\s+back/i,
+
+    // Emotes
+    "Do you often greet people who are trying to kill you?": /Greetings/i,
+    "You're ... welcome?": /Thank(s|\s+you)/i,
+    "Of course I played well. I'm Kel'Thu-freaking-zad!": /Well\s+played/i,
+    "It's ok, interloper, we all make mistakes.": /Sorry/i,
+    "Indeed.": /Oo+ps/i,
+
+    // Smileys
+    "Is ... is that you, Bigglesworth?! :3": /:3|Meow/i,
+    "You laugh in the face of death, interloper?": /:-D :-D :-D/
+  }; log("The Kel'Thuzad bot is up and running. Did you hear that, Bigglesworth?!");
+(js)(^kel-thuzad-loaded)(;)
+
+(::kel-thuzad-loaded)(changed)```
+if($s.whitelist.test(getCurrName())) {
+  var response = "";
+  for(var i in $s.responses) {
+    if($s.responses[i].test(getLastReply())) {
+      response = i;
+    }
+  } if(response) {
+    $s.prefix + response.replace( /\n/g, $s.prefix );
+  } else "";
+} else "";```(repeat)

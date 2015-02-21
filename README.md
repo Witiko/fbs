@@ -4,12 +4,12 @@ Install the `fbs.user.js` file using your userscript manager. The Facebook Batch
 
 # Input format
 
-    <Message1/Command1><Message2/Command2> … <MessageN/CommandN>(;)
-    <Message1/Command1><Message2/Command2> … <MessageN/CommandN>(;)
-                                           …
-    <Message1/Command1><Message2/Command2> … <MessageN/CommandN>
+    Message1/(Command1) Message2/(Command2) … MessageN/(CommandN)(;)
+    Message1/(Command1) Message2/(Command2) … MessageN/(CommandN)(;)
+                                            …
+    Message1/(Command1) Message2/(Command2) … MessageN/(CommandN)
          
-The entire input is called a superbatch. Each of the sections of a superbatch delimited by `(;)` is processed in parallel to others and is called a batch. Each batch can comprise messages, [commands](#commands), [comments](#comments) and [substitutions](#javascript-execution-and-substitution). Batches can be instantiated several times and run in parallel using [the `clone()` function](#batch-control).
+The entire input is called a superbatch. Each of the sections of a superbatch delimited by `(;)` is processed in parallel to others and is called a batch. Each batch can comprise messages, [commands](#commands), [comments](#comments) and [substitutions](#javascript-execution-and-substitution). Batches can be instantiated several times and run in parallel using [the `clone()` function](#batch-control). Example scripts can be found inside the [`scripts`](scripts) directory.
 
 # Core concepts
 ## Tokenization
@@ -212,4 +212,4 @@ The following additional methods and variables are available during JavaScript e
 
 ### Miscellaneous
 
-  * `beep()` – Lets out a beep ([AudioContext](https://developer.mozilla.org/en-US/docs/Web/API/AudioContext) API dependent).
+  * `beep()` – Lets out a beep ([AudioContext API](https://developer.mozilla.org/en-US/docs/Web/API/AudioContext) dependent).

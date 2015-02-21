@@ -800,26 +800,31 @@
  
         case "^": silent = false; next(); break;
         case "v": silent = true;  next(); break;
+        
         case "freeze":
           frozen = true;
           if (settings.debug.freeze)
             log("fbs is now frozen.");
           perform();
           break;
+          
         case "unfreeze":
           frozen = false;
           if (settings.debug.freeze)
             log("fbs is no longer frozen.");
           next();
           break;
+          
         case "notify":
           notify();
           next();
           break;
+          
         case "repeat":
           with(context) clone($i, pastEvents);
           // Fall-through
         case "never": break;
+        
         case "at":
           var at = Date.parse(suffix) || parseHMS(suffix);
           if (isNaN(at)) {

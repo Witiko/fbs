@@ -1,0 +1,4 @@
+(v)The message resender is running, receive using (``:resender-NAME).(;)
+(changed)(@^^resender-```getCurrName()```^^
+  getLastReplyName() + ": " + getLastReply()
+^^)(repeat)
