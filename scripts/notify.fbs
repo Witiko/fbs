@@ -1,4 +1,4 @@
-(v)The notifier is running. Call via (``^notify^STATE^).
+(v)The notifier is running. Call via (``^notify^"STATE"^).
 (/ Where STATE is one of the blocking fbs commands. (;)
 (v)(:notify)
   Waiting for `getCurrName()` to become `eventData`.

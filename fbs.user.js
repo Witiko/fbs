@@ -701,7 +701,7 @@
   function send(message) {
     if(!message) return;
     setMessage(message);
-    document.getElementById("u_0_r").click();
+    document.querySelector("._5f0v[type=submit]").click();
   }
  
   function whisper(message, context) {
