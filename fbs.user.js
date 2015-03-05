@@ -10,7 +10,7 @@
 
 (function(global) {
   if(window.top != window && window.top != window.unsafeWindow) return;
-  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(@?\^\^[^:^`]+?\^\^.+?\^\^\)|\(@?\^\^[^:^`]+?(?:\^\^)?\)|\(@?\^[^:^`]+?\^.+?\^\)|\(@?\^[^:^`]+?(?:\^)?\)|\(::?[^:^`]+?\)|\(repeat\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(notify\)|\(replied\)|\(changed\)|\(posted\)|\((?:un)?freeze\)|\(!?(?:(?:on|off)line|mobile)\)/,
+  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(@?\^\^[^:^`]+?\^\^.+?\^\^\)|\(@?\^\^[^:^`]+?(?:\^\^)?\)|\(@?\^[^:^`]+?\^.+?\^\)|\(@?\^[^:^`]+?(?:\^)?\)|\(::?[^:^`]+?\)|\(repeat\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(notify\)|\(replied\)|\(changed\)|\(,\)|\(posted\)|\((?:un)?freeze\)|\(!?(?:(?:on|off)line|mobile)\)/,
       events = {
         send: {
           async: {
@@ -798,8 +798,10 @@
                  document.querySelector(".presenceMobile");
         }); break;
  
+        // Non-blocking commands
         case "^": silent = false; next(); break;
         case "v": silent = true;  next(); break;
+        case ",": next(); break;
         
         case "freeze":
           frozen = true;
@@ -1010,7 +1012,7 @@
       }, DOWHEN_INTERVAL);
     } function next() {
       if(settings.debug.batch)
-        log("Batch:", batch, "->", batch.slice(1));
+        log("Batch:", batch, " ~> ", batch.slice(1));
       execute(batch.slice(1), preventNamelock, pastEvents, silent, context, eventData);
     } function substitute(text, type) {
       return text.split(substitution[type][0]).map(function(segment) {

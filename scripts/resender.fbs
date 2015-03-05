@@ -1,7 +1,10 @@
-(v)The message resender is running, receive using (``:resender-`getCurrName()`).(;)
+(js)log("The message resender is running, receive using (:resender-`getCurrName()`).")(;)
 (changed)(@^^resender-```getCurrName()```^^
   getLastReplyName() + ": " + getLastReply()
 ^^)(repeat)(;)
 
-(v)The message multiplexer is running, send messages to this window using (``^^send-`getCurrName()`^^"MESSAGE"^^).(;)
-(v)(:send-```getCurrName()```)`eventData`(repeat)
+(js)log('The message multiplexer is running:\n' + 
+' * Send messages to this window using (^^send-`getCurrName()`^^"MESSAGE"^^)\n' +
+' * Execute batches in this window using (^^exec-`getCurrName()`^^"BATCH"^^)')(;)
+(v)(:send-```getCurrName()```)`eventData`(repeat)(;)
+(v)(:exec-```getCurrName()```)(,)```eventData```(repeat)

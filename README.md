@@ -119,6 +119,7 @@ _Note: When inlining JavaScript calls such as `string.test(/regexp/)`, make sure
 
   * `(v)` – Redirect all following messages to `console.log`. This command never blocks.
   * `(^)` – Redirect all following messages to the current recipient (default). This command never blocks.
+  * `(,)` – Do nothing. Useful to separate one message into chunks and to prevent the simmultaneous expansion of adjacent strong [substitutions](#javascript-execution-and-substitution). This command never blocks.
   * `(freeze)` – Make the next message or the next potentially blocking command in every batch block indefinitely (see [freezing](#freezing)).
   * `(unfreeze)` – Cancel the effect of the `(freeze)` command. This command never blocks.
     * _Note: When executing a batch while in the frozen state, the `(unfreeze)` [command](#commands) needs to be provided prior to any messages or potentially blocking [commands](#commands). Otherwise the batch will block indefinitely due to the freeze._
