@@ -1,4 +1,7 @@
-(v)The message resender is running, receive using (``:resender-NAME).(;)
+(v)The message resender is running, receive using (``:resender-`getCurrName()`).(;)
 (changed)(@^^resender-```getCurrName()```^^
   getLastReplyName() + ": " + getLastReply()
-^^)(repeat)
+^^)(repeat)(;)
+
+(v)The message multiplexer is running, send messages to this window using (``^^send-`getCurrName()`^^"MESSAGE"^^).(;)
+(v)(:send-```getCurrName()```)`eventData`(repeat)
