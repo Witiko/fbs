@@ -1,10 +1,81 @@
-(js)log("The message resender is running, receive using (:resender-`getCurrName()`).")(;)
+(/ Resending messages)
+(js)
+  var user = getCurrName();  
+  if ("children" in $i) {
+    if ($i.children.indexOf(user) === -1) {
+      $i.children.push(user);
+      message();
+    }
+  } else {
+    $i.children = [ user ];
+    message();
+  }
+
+  function message() {
+    log("Receive messages from this window using (:resender-" + user + ").");
+  }
+(js)(switched)(repeat)(;)
 (changed)(@^^resender-```getCurrName()```^^
   getLastReplyName() + ": " + getLastReply()
 ^^)(repeat)(;)
 
-(js)log('The message multiplexer is running:\n' + 
-' * Send messages to this window using (^^send-`getCurrName()`^^"MESSAGE"^^)\n' +
-' * Execute batches in this window using (^^exec-`getCurrName()`^^"BATCH"^^)')(;)
-(v)(:send-```getCurrName()```)`eventData`(repeat)(;)
-(v)(:exec-```getCurrName()```)(,)```eventData```(repeat)
+(/ Sending messages via events)
+```
+  var user = getCurrName();
+  if ($i.child)
+    // Per-user process
+    "(lock)(:send-" + strong("getCurrName()") + ")" +
+      weak("eventData") + "(repeat)";
+  else {
+    // Global dispatcher process
+    if ("children" in $i) {
+      if ($i.children.indexOf(user) === -1) {
+        $i.children.push(user);
+        spawn();
+      }
+    } else {
+      $i.children = [ user ];
+      spawn();
+    } "(unlock)";
+  }
+  
+  // We spawn a daemon for the given user
+  function spawn() { 
+    log("Send messages to this window using (^^send-" + user + "^^\"MESSAGE\"^^).");
+    clone({ child: true });
+  }
+```(switched)(repeat)(;)
+
+(/ Executing batches via events)
+```
+  var user = getCurrName();
+  if ($i.eventData)
+    // Per-batch process
+    $i.eventData + "(never)"
+  else if ($i.child)
+    // Per-user process
+    "(lock)(:exec-" + strong("getCurrName()") + ")" +
+      js(
+        "if(settings.debug.resender)" +
+          "log('Executing a batch', eventData);" +
+        "clone({ eventData: eventData });"
+      ) + "(repeat)";
+  else {
+    // Global dispatcher process
+    if ("children" in $i) {
+      if ($i.children.indexOf(user) === -1) {
+        $i.children.push(user);
+        spawn();
+      }
+    } else {
+      $i.children = [ user ];
+      spawn();
+    } "(unlock)";
+  }
+  
+  // We spawn a daemon for the given user
+  function spawn() {
+    log("Execute batches in this window using (^^exec-" + user + "^^\"BATCH\"^^).");
+    clone({ child: true });
+  }
+```(switched)(repeat)
