@@ -36,13 +36,13 @@ The input tokenization is performed in three steps (see function `tokenize()`):
 
 ## Name locking
 
-Each input you execute is locked to the name of the current recipient. Input execution will be paused each time you switch to another user. [Fbsrc](#runtime-configuration) and fbs scripts loaded via [reflection](#http-requests-and-reflection) are exempt from this rule. This behaviour can be overriden using [the `(lock)` and `(unlock)` commands](#miscellaneous).
+Each input you execute is locked to the name of the current recipient. Input execution will be paused each time you switch to another user. [Fbsrc](#runtime-configuration-fbsrc) and fbs scripts loaded via [reflection](#http-requests-and-reflection) are exempt from this rule. This behaviour can be overriden using [the `(lock)` and `(unlock)` commands](#miscellaneous).
 
 ## Freezing
 
 The execution of all batches can be paused using the `(freeze)` and `(unfreeze)` [commands](#commands).
 
-_Note: Although the effect is similar to that of [name locking](#), [fbsrc](#runtime-configuration) and fbs scripts loaded via [reflection](#http-requests-and-reflection) are NOT exempt from freezing._
+_Note: Although the effect is similar to that of [name locking](#), [fbsrc](#runtime-configuration-fbsrc) and fbs scripts loaded via [reflection](#http-requests-and-reflection) are NOT exempt from freezing._
 
 ## Runtime Configuration (fbsrc)
 
@@ -125,10 +125,10 @@ _Note: When inlining JavaScript calls such as `string.test(/regexp/)`, make sure
   * `(unfreeze)` – Cancel the effect of the `(freeze)` command. This command never blocks.
     * _Note: When executing a batch while in the frozen state, the `(unfreeze)` [command](#commands) needs to be provided prior to any messages or potentially blocking [commands](#commands). Otherwise the batch will block indefinitely due to the freeze._
   * `(lock)` – From this point onward, enforce [name locking](#name-locking).
-    * This is the default setting for batches other than [Fbsrc](#runtime-configuration) and fbs scripts loaded via [reflection](#http-requests-and-reflection).
+    * This is the default setting for batches other than [fbsrc](#runtime-configuration-fbsrc) and fbs scripts loaded via [reflection](#http-requests-and-reflection).
     * This command never blocks.
   * `(unlock)` – From this point onward, ignore [name locking](#name-locking).
-    * This is the default setting for [Fbsrc](#runtime-configuration) and fbs scripts loaded via [reflection](#http-requests-and-reflection).
+    * This is the default setting for [fbsrc](#runtime-configuration-fbsrc) and fbs scripts loaded via [reflection](#http-requests-and-reflection).
     * This command never blocks.
   * `(notify)` – Notify the user using the [Notification API](https://developer.mozilla.org/en-US/docs/Web/API/notification). This command never blocks.
   * `(repeat)` – Repeats the current instance of the batch in the form in which it was originally [executed](#execution). This command never blocks.
