@@ -10,7 +10,7 @@
 
 (function(global) {
   if(window.top != window && window.top != window.unsafeWindow) return;
-  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(@?\^\^[^:^`]+?\^\^.+?\^\^\)|\(@?\^\^[^:^`]+?(?:\^\^)?\)|\(@?\^[^:^`]+?\^.+?\^\)|\(@?\^[^:^`]+?(?:\^)?\)|\(::?[^:^`]+?\)|\(repeat\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(notify\)|\(replied\)|\(changed\)|\(,\)|\(posted\)|\((?:un)?freeze\)|\(!?(?:(?:on|off)line|mobile)\)/,
+  var rawCommands = /\(js\)(?:.*?)(?:\(js\)|$)|\(v\)|\(\^\)|\(@?\^\^[^:^`]+?\^\^.+?\^\^\)|\(@?\^\^[^:^`]+?(?:\^\^)?\)|\(@?\^[^:^`]+?\^.+?\^\)|\(@?\^[^:^`]+?(?:\^)?\)|\(::?[^:^`]+?\)|\(repeat\)|\(at [^`]*?\)|\((?:\d+(?:Y|M|d|h|ms|m|s)\s?)+\)|\(never\)|\(seen\)|\(typing!?\)|\(any\)|\(notify\)|\(replied\)|\(changed\)|\(,\)|\(posted\)|\(switched\)|\((?:un)?lock\)|\((?:un)?freeze\)|\(!?(?:(?:on|off)line|mobile)\)/,
       events = {
         send: {
           async: {
@@ -424,7 +424,7 @@
       contentEditable = true;
       with(style) {
         display         = "none";
-        fontSize        = "16px";
+        fontSize        = "10pt";
         fontFamily      = "monospace";
         width           = "100%";
         position        = "fixed";
@@ -726,7 +726,7 @@
     el.classList.add(PLACEHOLDER_CLASS);
     el.value = "";
   }
- 
+
   function execute(batch, preventNamelock, pastEvents, silent, context, eventData) {
     if(!batch.length) return;
 
@@ -745,6 +745,10 @@
       }
 
       // Lazy definition #2
+      if(preventNamelock && prefix === "switched")
+        var name = getCurrName();
+
+      // Lazy definition #3
       switch(prefix) {
         case "changed":
         case "posted":
@@ -755,10 +759,14 @@
        
       switch(prefix) { // Let's handle it
          
-        case "seen":    waitUntil(seen);    break;
-        case "replied": waitUntil(replied); break;
-        case "typing":  waitUntil(typing);  break;
-        case "changed": waitUntil(changed); break;
+        case "seen":     waitUntil(seen);     break;
+        case "replied":  waitUntil(replied);  break;
+        case "typing":   waitUntil(typing);   break;
+        case "changed":  waitUntil(changed);  break;
+        case "switched":
+          if (preventNamelock)
+            waitUntil(switched);
+          break;
  
         case "posted": waitUntil(function() {
           return replied() && changed();
@@ -799,6 +807,8 @@
         }); break;
  
         // Non-blocking commands
+        case "lock":   preventNamelock = false; next(); break;
+        case "unlock": preventNamelock = true;  next(); break;
         case "^": silent = false; next(); break;
         case "v": silent = true;  next(); break;
         case ",": next(); break;
@@ -957,6 +967,8 @@
       return !!document.querySelector(".mbs > .typing");
     } function seen() {
       return !!document.querySelector(".mbs > .seen");
+    } function switched() {
+      return getCurrName() !== name;
     }
     
     function timedWait(at) {
@@ -983,7 +995,7 @@
       if(frozen) return false;
       
       // We check the name lock
-      if(!preventNamelock && getCurrName() !== name) {
+      if(!preventNamelock && switched()) {
         if(!namelocked) {
           if(settings.debug.namelock)
             log("The batch ", batch, " for ", name, " was name-locked.");
@@ -1003,16 +1015,22 @@
     } function perform(action) {
       doWhen(function() { return true; }, action);
     } function doWhen(condition, action) {
+      busyWait(function() {
+        return checkNamelock() && condition();
+      }, function() {
+        if(action) action();
+        next();
+      });
+    } function busyWait(condition, callback) {
       var interval = setInterval(function() {
-        if(checkNamelock() && condition()) {
+        if (condition()) {
           clearInterval(interval);
-          if(action) action();
-          next();
+          callback();
         }
-      }, DOWHEN_INTERVAL);
+      }, DOWHEN_INTERVAL);      
     } function next() {
       if(settings.debug.batch)
-        log("Batch:", batch, " ~> ", batch.slice(1));
+        log("Batch:", batch, "\n~>\n", batch.slice(1));
       execute(batch.slice(1), preventNamelock, pastEvents, silent, context, eventData);
     } function substitute(text, type) {
       return text.split(substitution[type][0]).map(function(segment) {
@@ -1119,15 +1137,12 @@
       // Global listener
       var obj = {}, done = false;
       obj[name] = function(data) {
-        if(checkNamelock()) {
-          if(done) return;
-          done = true;
-          unlisten();
+        if(done) return;
+        done = true;
+        unlisten();
+        busyWait(checkNamelock, function() {
           callback(data);
-        } else if(settings.debug.namelock) {
-          log("A global event", name, "with data", data, "was received by the batch",
-          	batch, "but was not captured due to the active namelock.");
-        }
+        });
       }, unlisten = ding.listen(obj);
       
     } function listenForLocal(name, callback) {
@@ -1137,16 +1152,12 @@
         group: name
       }), done = false; node.listen({
         multicast: function(msg) {
-          var data = msg.data.payload;
-          if(checkNamelock()) {
-            if(done) return;
-            done = true;
-            node.destroy();
-            callback(data);
-          } else if(settings.debug.namelock) {
-            log("A local event", name, "with data", data, "was received by the batch",
-            	batch, "but was not captured due to the active namelock.");
-          }
+          if(done) return;
+          done = true;
+          node.destroy();
+          busyWait(checkNamelock, function() {
+            callback(msg.data.payload);
+          });
         }
       });
       
@@ -1270,11 +1281,13 @@
                });
   }
   
-  /* Convenience strong-substitution functions */7
+  /* Convenience strong-substitution functions */
   function strong(str) {
     return "```" + str + "```";
   } function weak(str) {
     return "`" + str + "`";
+  } function js(str) {
+    return "(js)" + str + "(js)";
   } function command(str) {
     return "(" + str + ")";
   }

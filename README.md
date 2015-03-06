@@ -36,7 +36,7 @@ The input tokenization is performed in three steps (see function `tokenize()`):
 
 ## Name locking
 
-Each input you execute is locked to the name of the current recipient. Input execution will be paused each time you switch to another user. [Fbsrc](#runtime-configuration) and fbs scripts loaded via [reflection](#http-requests-and-reflection) are exempt from this rule.
+Each input you execute is locked to the name of the current recipient. Input execution will be paused each time you switch to another user. [Fbsrc](#runtime-configuration) and fbs scripts loaded via [reflection](#http-requests-and-reflection) are exempt from this rule. This behaviour can be overriden using [the `(lock)` and `(unlock)` commands](#miscellaneous).
 
 ## Freezing
 
@@ -67,6 +67,7 @@ _Note: When inlining JavaScript calls such as `string.test(/regexp/)`, make sure
   * `(typing)` – Wait until the recipient has started typing to you.
   * `(typing!)` – Wait until the recipient has started typing to you or posted a message.
   * `(any)` – Wait until the recipient has seen the previous message, started typing to you or posted a message.
+  * `(switched)` – Wait until a switch between users has occured. If [name locking](#name-locking) is in effect, this command blocks indefinitely.
  
 ## Responding to states
 
@@ -114,7 +115,7 @@ _Note: When inlining JavaScript calls such as `string.test(/regexp/)`, make sure
     * `s` – Seconds
     * `ms` – Milliseconds
   * `(never)` – Block indefinitely.
- 
+
 ## Miscellaneous
 
   * `(v)` – Redirect all following messages to `console.log`. This command never blocks.
@@ -123,6 +124,12 @@ _Note: When inlining JavaScript calls such as `string.test(/regexp/)`, make sure
   * `(freeze)` – Make the next message or the next potentially blocking command in every batch block indefinitely (see [freezing](#freezing)).
   * `(unfreeze)` – Cancel the effect of the `(freeze)` command. This command never blocks.
     * _Note: When executing a batch while in the frozen state, the `(unfreeze)` [command](#commands) needs to be provided prior to any messages or potentially blocking [commands](#commands). Otherwise the batch will block indefinitely due to the freeze._
+  * `(lock)` – From this point onward, enforce [name locking](#name-locking).
+    * This is the default setting for batches other than [Fbsrc](#runtime-configuration) and fbs scripts loaded via [reflection](#http-requests-and-reflection).
+    * This command never blocks.
+  * `(unlock)` – From this point onward, ignore [name locking](#name-locking).
+    * This is the default setting for [Fbsrc](#runtime-configuration) and fbs scripts loaded via [reflection](#http-requests-and-reflection).
+    * This command never blocks.
   * `(notify)` – Notify the user using the [Notification API](https://developer.mozilla.org/en-US/docs/Web/API/notification). This command never blocks.
   * `(repeat)` – Repeats the current instance of the batch in the form in which it was originally [executed](#execution). This command never blocks.
 
@@ -212,6 +219,7 @@ The following additional methods and variables are available during JavaScript e
 
   * `command(s)` – Returns `"(" + s + ")"`.
   * `weak(s)` – Returns ``"`" + s + "`"``.
+  * `js(s)` – Returns `"(js)" + s + "(js)"`.
   * `strong(s)` – Returns ````"```" + s + "```"````.
 
 ### Miscellaneous
