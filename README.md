@@ -152,10 +152,10 @@ _Note: When inlining JavaScript calls such as `string.test(/regexp/)`, make sure
     * Examples:
       * ````You've got five seconds to tell me where I am (```1 + 2```s) and three have just passed.````
       * ````This will get posted.```condition ? "(never)" : ""```And this will conditionally not.````
-                     
-              (js)$i.count = 1; $i.expand = function() {
-                return weak("$i.count++") + "(2s)" + strong("$i.expand()");
-              }(js)```$i.expand()``` (/ Will keep on counting ad infinitum
+
+              (js)var count = 1; $i.expand = function() {
+                return (count++) + "(2s)" + strong("$i.expand()");
+              };(js)```$i.expand()``` (/ Will keep on counting ad infinitum
 
 ## JavaScript execution context
                     

@@ -1040,9 +1040,10 @@
         })() : segment;
       }).join("");
     } function evaluate(str) {
+      str = newlines.decode(str);
       with(context) {
         try {
-          var retVal = eval(newlines.decode(str));
+          var retVal = eval(str);
           return retVal === undefined ? "" :  newlines.encode(String(retVal));
         } catch(e) {
           err("The following exception has been caught while executing the expression", str, ":", e);
