@@ -51,7 +51,7 @@
   var user = getCurrName();
   if ($i.eventData)
     // Per-batch process
-    $i.eventData + "(never)"
+    "(lock)" + $i.eventData + "(never)"
   else if ($i.child)
     // Per-user process
     "(lock)(:exec-" + strong("getCurrName()") + ")" +
