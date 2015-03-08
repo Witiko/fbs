@@ -1,6 +1,6 @@
 (/ A Kel'Thuzad bot)(js)
-  $s.prefix = "(3s)[Kel'Thuzad]: ";
-  $s.whitelist = $w.ktWhitelist; // Replace this with a RegExp
+  $s.prefix = "(3s)Kel'Thuzad: ";
+  $s.whitelist = $w.hsWhitelist; // Replace this with a RegExp
   $s.responses = {
     // Battlecries
     "How naive! Don't you remember what happened to Uther?": /Light(\s+(sha|wi)|')ll\s+bring\s+victory/i,

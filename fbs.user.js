@@ -629,7 +629,7 @@
     date.setMilliseconds(0);
     // If we're past the date, wait until tomorrow
     if(now() > date.getTime()) {
-      log([h,m,s].join(":"), "has already passed, waiting until tomorrow");
+      log([h,m,s].join(":"), "has already passed, waiting until tomorrow.");
       return date.getTime() + unitValues.d;
     } return date.getTime();
   }
@@ -642,7 +642,7 @@
       var batch = tokenize(input);
       (function exec($i, pastEvents) {   // v Name locking
         if(preventNamelock && settings.debug.namelock)
-          log("The batch", batch, "has been executed without namelocking");
+          log("The batch", batch, "has been executed without namelocking.");
         execute(batch, preventNamelock, pastEvents || { /* The past captured events */ }, false, {
           // Context data / methods available for the user in js substitution / execution
           clone: exec,
@@ -807,8 +807,12 @@
         }); break;
  
         // Non-blocking commands
-        case "lock":   preventNamelock = false; next(); break;
-        case "unlock": preventNamelock = true;  next(); break;
+        case "lock":
+          log("The batch", batch, "now enforces namelocking.");
+          preventNamelock = false; next(); break;
+        case "unlock":
+          log("The batch", batch, "no longer enforces namelocking.");
+          preventNamelock = false; next(); break;
         case "^": silent = false; next(); break;
         case "v": silent = true;  next(); break;
         case ",": next(); break;
@@ -1183,7 +1187,7 @@
     if(el)
       return el.textContent;
     else {
-      warn("getLastReplyName(): Couldn't retrieve the last reply name, returning an empty string instead");
+      warn("getLastReplyName(): Couldn't retrieve the last reply name, returning an empty string instead.");
       return "";
     }
   }
@@ -1193,9 +1197,9 @@
     if(el)
       return [].map.call(el.querySelectorAll("[data-reactid]>[data-reactid], a"), function(el) {
         return el.textContent;
-      }).join(", ") + (document.getElementById("js_3t") ? " a další ..." : "");
+      }).join(", ") + (document.getElementById("js_3t") ? " ..." : "");
     else {
-      warn("getCurrName(): Couldn't retrieve the current name, returning a random string instead");
+      warn("getCurrName(): Couldn't retrieve the current name, returning a random string instead.");
       return Math.random();
     }
   }
@@ -1222,11 +1226,11 @@
       case "js":
       case "fbs":
         try {
-          scriptLog("Loaded and executed");
+          scriptLog("Loaded and executed.");
           if(lang === "js") {
             with({
               Export: function(name, val) {
-                scriptLog("The member", name, "has been made global");
+                scriptLog("The member", name, "has been made global.");
                 global[name] = val;
               }, log: function() {
                 log.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
@@ -1245,7 +1249,7 @@
           break;
         }
       default:
-        scriptErr("An unknown language of", lang, "has been specified");
+        scriptErr("An unknown language of", lang, "has been specified.");
     }    
     
     function scriptLog() {
@@ -1261,7 +1265,7 @@
     if(http.status == 200) {
       return http.responseText;
     } else {
-      warn("Failed to download resource from the url", url, " (" + http.status + " – " + http.statusText + ")");
+      warn("Failed to download resource from the url", url, " (" + http.status + " – " + http.statusText + ").");
       return "";
     }
   }
