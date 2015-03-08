@@ -403,13 +403,8 @@
   (function() {
     // Executing fbsrc
     onload = function() {
-      try {
-        if("fbsrc" in localStorage) {
-          parseAndExecute(localStorage["fbsrc"], true);
-        } log("fbsrc executed");
-      } catch(e) {
-        err("Executing the fbsrc caused an exception to be thrown:", e);
-      }
+      parseAndExecute(localStorage["fbsrc"], true);
+      log("fbsrc executed");
     };
  
     // Building a GUI
@@ -582,7 +577,7 @@
   })();
  
   function notify() {
-    new Notification(getCurrName());
+    new Notification(getCurrName.call(this));
   }
   
   function beep() {
@@ -634,12 +629,14 @@
     } return date.getTime();
   }
      
-  var $w = { /* The window-local hash table */ };
+  var $w = { settings: settings };
   function parseAndExecute(string, preventNamelock, handle) {
-    var $s = { /* The superbatch-local hash table */ };
+    var $s = protoSettings($w);
     newlines.encode(string).split(rawCr).forEach(function(input) {
-      var $b = { /* The batch-local hash table */ };
-      var batch = tokenize(input);
+      var $b = protoSettings($s),
+          batch = tokenize.call({
+            $i: protoSettings($b)
+          }, input), that = this;
       (function exec($i, pastEvents) {   // v Name locking
         if(preventNamelock && settings.debug.namelock)
           log("The batch", batch, "has been executed without namelocking.");
@@ -650,17 +647,26 @@
           $w: $w,
           $s: $s,
           $b: $b,
-          $i: $i || { /* The batch-instance-local hash table */ },
+          $i: $i ? ($i.settings ? $i : proto(protoSettings($b), $i)) : protoSettings($b),
           log: !handle ? log : function() {
-            log.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
+            log.apply(that, [handle + ":"].concat([].slice.call(arguments, 0)));
           }, warn: !handle ? warn : function() {
-            warn.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
+            warn.apply(that, [handle + ":"].concat([].slice.call(arguments, 0)));
           }, err: !handle ? err : function() {
-            err.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
+            err.apply(that, [handle + ":"].concat([].slice.call(arguments, 0)));
           }
         });
       })();
     });
+    
+    function protoSettings(parent) {
+      return {
+        settings: proto(parent.settings, {
+          newlines: proto(parent.settings.newlines),
+          debug: proto(parent.settings.debug)
+        })
+      };
+    }
   }
    
   function tokenize(string) {
@@ -678,7 +684,7 @@
       }
     });
     
-    if(settings.debug.tokenizer)
+    if(this.$i.settings.debug.tokenizer)
       log("Tokenizer:", string, "->", batch);
     
     return batch;
@@ -707,7 +713,7 @@
   function whisper(message, context) {
     if(!message) return;
     with(context)
-      log(message);
+      log.call(context, message);
   }
    
   function getMessage() {
@@ -732,7 +738,7 @@
 
     // Lazy definition #1
     if(!preventNamelock)
-      var name = getCurrName();
+      var name = getCurrName.call(context);
 
     if(commands.test(batch[0]) &&
       !substitution.strong[0].test(batch[0])) { // It's a command
@@ -746,7 +752,7 @@
 
       // Lazy definition #2
       if(preventNamelock && prefix === "switched")
-        var name = getCurrName();
+        var name = getCurrName.call(context);
 
       // Lazy definition #3
       switch(prefix) {
@@ -808,10 +814,12 @@
  
         // Non-blocking commands
         case "lock":
-          log("The batch", batch, "now enforces namelocking.");
+          if(context.$i.settings.debug.namelock)
+            log.call(context, "The batch", batch, "now enforces namelocking.");
           preventNamelock = false; next(); break;
         case "unlock":
-          log("The batch", batch, "no longer enforces namelocking.");
+          if(context.$i.settings.debug.namelock)
+            log.call(context, "The batch", batch, "no longer enforces namelocking.");
           preventNamelock = false; next(); break;
         case "^": silent = false; next(); break;
         case "v": silent = true;  next(); break;
@@ -819,20 +827,20 @@
         
         case "freeze":
           frozen = true;
-          if (settings.debug.freeze)
-            log("fbs is now frozen.");
+          if (context.$i.settings.debug.freeze)
+            log.call(context, "fbs is now frozen.");
           perform();
           break;
           
         case "unfreeze":
           frozen = false;
-          if (settings.debug.freeze)
-            log("fbs is no longer frozen.");
+          if (context.$i.settings.debug.freeze)
+            log.call(context, "fbs is no longer frozen.");
           next();
           break;
           
         case "notify":
-          notify();
+          notify.call(context);
           next();
           break;
           
@@ -844,7 +852,7 @@
         case "at":
           var at = Date.parse(suffix) || parseHMS(suffix);
           if (isNaN(at)) {
-            err(suffix, "specifies a malformed date.");
+            err.call(context, suffix, "specifies a malformed date.");
           } else {
             timedWait(at);
           } break;
@@ -950,13 +958,13 @@
       // No command
       if (substitution.strong[0].test(batch[0])) {
         // If there is a strong substitution, perform it and retokenize the output
-        batch = [batch[0]].concat(tokenize(substitute(batch[0], "strong")), batch.slice(1));
+        batch = [batch[0]].concat(tokenize.call(context, substitute(batch[0], "strong")), batch.slice(1));
       } else {
         // Otherwise just perform weak substitution and sent the result as plaintext
         var message = newlines.decode(substitute(batch[0], "weak"));
-        if (settings.newlines.trimmed)
+        if (context.$i.settings.newlines.trimmed)
           message = message.trim();
-        if (settings.newlines.TeXLike)
+        if (context.$i.settings.newlines.TeXLike)
           message = TeXLike(message);
         (silent?whisper:send)(message, context);        
       }
@@ -972,12 +980,12 @@
     } function seen() {
       return !!document.querySelector(".mbs > .seen");
     } function switched() {
-      return getCurrName() !== name;
+      return getCurrName.call(context) !== name;
     }
     
     function timedWait(at) {
-      if(settings.debug.time) {
-        log("Waiting until ", new Date(at));
+      if(context.$i.settings.debug.time) {
+        log.call(context, "Waiting until ", new Date(at));
       } waitUntil(function() {
         return now() >= at;
       });
@@ -989,7 +997,7 @@
       if(el)
         return el.id + "#" + el.querySelectorAll("p").length;
       else {
-        warn("getLastReplyId(): Couldn't retrieve the last reply id, returning an empty string instead");
+        warn.call(context, "getLastReplyId(): Couldn't retrieve the last reply id, returning an empty string instead");
         return "";
       }
     }
@@ -1001,14 +1009,14 @@
       // We check the name lock
       if(!preventNamelock && switched()) {
         if(!namelocked) {
-          if(settings.debug.namelock)
-            log("The batch ", batch, " for ", name, " was name-locked.");
+          if(context.$i.settings.debug.namelock)
+            log.call(context, "The batch ", batch, " for ", name, " was name-locked.");
           namelocked = true;
         } return false;
       } else {
         if(namelocked) {
-          if(settings.debug.namelock)
-            log("The batch ", batch, " for ", name, " was name-unlocked.");
+          if(context.$i.settings.debug.namelock)
+            log.call(context, "The batch ", batch, " for ", name, " was name-unlocked.");
           namelocked = false;
         } return true;
       }
@@ -1033,8 +1041,8 @@
         }
       }, DOWHEN_INTERVAL);      
     } function next() {
-      if(settings.debug.batch)
-        log("Batch:", batch, "\n~>\n", batch.slice(1));
+      if(context.$i.settings.debug.batch)
+        log.call(context, "Batch:", batch, "\n~>\n", batch.slice(1));
       execute(batch.slice(1), preventNamelock, pastEvents, silent, context, eventData);
     } function substitute(text, type) {
       return text.split(substitution[type][0]).map(function(segment) {
@@ -1045,12 +1053,24 @@
       }).join("");
     } function evaluate(str) {
       str = newlines.decode(str);
-      with(context) {
+      with(proto(context, {
+        require: function(url, lang) {
+          require.call(context, url, lang);
+        }, include: function(url, lang) {
+          include.call(context, url, lang);
+        }, curl: function(url) {
+          curl.call(context, url);
+        }, getCurrName: function() {
+          return getCurrName.call(context);
+        }, getLastReplyName: function() {
+          return getLastReplyName.call(context);
+        }
+      })) {
         try {
           var retVal = eval(str);
           return retVal === undefined ? "" :  newlines.encode(String(retVal));
         } catch(e) {
-          err("The following exception has been caught while executing the expression", str, ":", e);
+          err.call(context, "The following exception has been caught while executing the expression", str, ":", e);
           return "";
         }
       }
@@ -1187,7 +1207,7 @@
     if(el)
       return el.textContent;
     else {
-      warn("getLastReplyName(): Couldn't retrieve the last reply name, returning an empty string instead.");
+      warn.call(this, "getLastReplyName(): Couldn't retrieve the last reply name, returning an empty string instead.");
       return "";
     }
   }
@@ -1199,7 +1219,7 @@
         return el.textContent;
       }).join(", ") + (document.getElementById("js_3t") ? " ..." : "");
     else {
-      warn("getCurrName(): Couldn't retrieve the current name, returning a random string instead.");
+      warn.call(this, "getCurrName(): Couldn't retrieve the current name, returning a random string instead.");
       return Math.random();
     }
   }
@@ -1211,15 +1231,15 @@
   function require(url, lang) {
     if(requiredScripts.indexOf(url) == -1) {
       requiredScripts.push(url);
-      include(url, lang);
-    } else if(settings.debug.require) {
-      warn("Script", url, "was required again, ignoring.");
+      include.call(this, url, lang);
+    } else if(this.$i.settings.debug.require) {
+      warn.call(this, "Script", url, "was required again, ignoring.");
     }
   }
   
   function include(url, lang) {
     var handle = url.replace(/.*\/([^#?]*).*/, "$1"),
-        script = curl(url);
+        script = curl.call(this, url), that = this;
     if(!lang) lang = handle.replace(/.*\./, "");
 
     switch(lang) {
@@ -1233,15 +1253,15 @@
                 scriptLog("The member", name, "has been made global.");
                 global[name] = val;
               }, log: function() {
-                log.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
+                log.apply(that, [handle + ":"].concat([].slice.call(arguments, 0)));
               }, warn: function() {
-                warn.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
+                warn.apply(that, [handle + ":"].concat([].slice.call(arguments, 0)));
               }, err: function() {
-                err.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
+                err.apply(that, [handle + ":"].concat([].slice.call(arguments, 0)));
               }
             }) eval(script);
           } else {
-            parseAndExecute(script, true, handle);
+            parseAndExecute.call(this, script, true, handle);
           }
         } catch(e) {
           scriptErr("An exception has been caught:", e);
@@ -1253,10 +1273,10 @@
     }    
     
     function scriptLog() {
-      if(settings.debug.require)
-        log.apply(this, ["Script", handle, ":"].concat([].slice.call(arguments, 0)));
+      if(that.$i.settings.debug.require)
+        log.apply(that, ["Script", handle, ":"].concat([].slice.call(arguments, 0)));
     } function scriptErr() {
-      err.apply(this, ["Script", handle, ":"].concat([].slice.call(arguments, 0)));
+      err.apply(that, ["Script", handle, ":"].concat([].slice.call(arguments, 0)));
     }
   }
   
@@ -1265,7 +1285,7 @@
     if(http.status == 200) {
       return http.responseText;
     } else {
-      warn("Failed to download resource from the url", url, " (" + http.status + " – " + http.statusText + ").");
+      warn.call(this, "Failed to download resource from the url", url, " (" + http.status + " – " + http.statusText + ").");
       return "";
     }
   }
@@ -1286,6 +1306,22 @@
                });
   }
   
+  /* Creates a new object, whose
+     prototype is `proto` and whose
+     own properties match those
+     of `copy`. */
+  function proto(proto, copy) {
+    copy = copy || {};
+    var f = function() {};
+    f.prototype = proto;
+    var obj = new f;
+    for (var i in copy) {
+      if (copy.hasOwnProperty &&
+          copy.hasOwnProperty(i))
+        obj[i] = copy[i];
+    } return obj;
+  }
+  
   /* Convenience strong-substitution functions */
   function strong(str) {
     return "```" + str + "```";
@@ -1300,12 +1336,12 @@
   function log() {
     console.log.apply(console, [].slice.call(arguments, 0));
   } function warn() {
-    if(settings.debug.warnings)
+    if(((this && this.$i) || $w).settings.debug.warnings)
       log.apply(this, ["WARNING:"].concat([].slice.call(arguments, 0)));
   } function err() {
     log.apply(this, ["ERROR:"].concat([].slice.call(arguments, 0)));
-    if(settings.freezeOnError)
-      parseAndExecute("(freeze)");
+    if(((this && this.$i) || $w).settings.freezeOnError)
+      parseAndExecute.call(this, "(freeze)");
   }
    
 })(this);

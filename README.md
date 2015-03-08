@@ -181,7 +181,8 @@ The following additional methods and variables are available during JavaScript e
   
 ### Batch control
 
-  * `clone(obj)` – Create a new instance of the current batch in the form in which it was originally [executed](#execution). The `$i` hash table of the instance is either `obj` or `{}` if unspecified.
+  * `clone(obj)` – Create a new instance of the current batch in the form in which it was originally [executed](#execution). The `$i` hash table of the instance is `$i = obj || {}`.
+    * If `$i` doesn't contain [the `settings` property](#settings-and-debugging), a deep prototype copy of `$b.settings` is created as a prototype of an empty object and own properties of `$i` are then copied to this object.
   * `global` – A reference to the userscript scope. Can be used to reference global members using the bracket notation.
   * `$w` – A non-persistent window-local hash table.
   * `$s` – A non-persistent superbatch-local hash table.
@@ -210,6 +211,13 @@ The following additional methods and variables are available during JavaScript e
   * `log(arg1, …)` – Log the arguments into the console (a generic message).
   * `warn(arg1, …)` – Log the arguments into the console (a warning).
   * `err(arg1, …)` – Log the arguments into the console (an error).
+
+The settings can be altered either globally or with varying degrees of locality:
+
+  * `$w.settings` – A direct reference to the `settings` object
+  * `$s.settings` – A superbatch-local object, which inherits from the `$w.settings` object.
+  * `$b.settings` – A batch-local object, which inherits from the `$s.settings` object.
+  * `$i.settings` – A batch instance-local object, which inherits from the `$b.settings` object.
 
 ### User events
 
