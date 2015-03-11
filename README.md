@@ -218,6 +218,7 @@ The settings can be altered either globally or with varying degrees of locality:
   * `$s.settings` – A superbatch-local object, which inherits from the `$w.settings` object.
   * `$b.settings` – A batch-local object, which inherits from the `$s.settings` object.
   * `$i.settings` – A batch instance-local object, which inherits from the `$b.settings` object.
+    * The values from this object are used by the runtime.
 
 ### User events
 

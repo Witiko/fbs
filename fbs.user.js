@@ -820,7 +820,7 @@
         case "unlock":
           if(context.$i.settings.debug.namelock)
             log.call(context, "The batch", batch, "no longer enforces namelocking.");
-          preventNamelock = false; next(); break;
+          preventNamelock = true; next(); break;
         case "^": silent = false; next(); break;
         case "v": silent = true;  next(); break;
         case ",": next(); break;
