@@ -436,6 +436,7 @@
       contentEditable = false;
       with(style) {
         border = "0";
+        opacity = "0.6";
         color = backgroundColor = "transparent";
         zIndex = "998";
       }
@@ -1059,7 +1060,7 @@
         }, include: function(url, lang) {
           include.call(context, url, lang);
         }, curl: function(url) {
-          curl.call(context, url);
+          return curl.call(context, url);
         }, getCurrName: function() {
           return getCurrName.call(context);
         }, getLastReplyName: function() {
