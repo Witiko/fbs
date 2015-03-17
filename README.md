@@ -234,3 +234,4 @@ The settings can be altered either globally or with varying degrees of locality:
 ### Miscellaneous
 
   * `beep()` – Lets out a beep ([AudioContext API](https://developer.mozilla.org/en-US/docs/Web/API/AudioContext) dependent).
+  * `notify(body)` – Similar to the `(notify)` command, but the `body` of the notification can also be specified.

@@ -577,8 +577,10 @@
      
   })();
  
-  function notify() {
-    new Notification(getCurrName.call(this));
+  function notify(body) {
+    new Notification(getCurrName.call(this), body ? {
+      body: body
+    } : null);
   }
   
   function beep() {
