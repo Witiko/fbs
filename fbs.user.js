@@ -75,7 +75,6 @@
       }, settings = {
         freezeOnError: false,
         newlines: {
-          trimmed:     true,
           TeXLike:     false
         }, debug: {
           warnings:    true,
@@ -964,9 +963,7 @@
         batch = [batch[0]].concat(tokenize.call(context, substitute(batch[0], "strong")), batch.slice(1));
       } else {
         // Otherwise just perform weak substitution and sent the result as plaintext
-        var message = newlines.decode(substitute(batch[0], "weak"));
-        if (context.$i.settings.newlines.trimmed)
-          message = message.trim();
+        var message = newlines.decode(substitute(batch[0], "weak")).trim();
         if (context.$i.settings.newlines.TeXLike)
           message = TeXLike(message);
         (silent?whisper:send)(message, context);        

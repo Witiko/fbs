@@ -2,4 +2,5 @@
 (/ Where STATE is one of the blocking fbs commands. (;)
 (v)(:notify)
   Waiting for `getCurrName()` to become `eventData`.
-  (```eventData```)(notify)
+  (```eventData```)  `notify("is now " + eventData)`
+  (repeat)

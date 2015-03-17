@@ -31,7 +31,7 @@ The input tokenization is performed in three steps (see function `tokenize()`):
         * _Note: Since the result of the strong [substitution](#javascript-execution-and-substitution) is [retokenized](#tokenization) as if it were a batch (see Tokenization §1.1), the `(;)` separator has no meaning and will be interpreted as plain text._
     2. Otherwise:
         1. If the message contains a weak [substitution](#javascript-execution-and-substitution), it is performed.
-        2. The resulting string is transformed based on the value of `settings.newlines` and sent to the current recipient or logged to the console depending on the current state of the batch instance (see [commands](#commands) `(v)` and `(^)`).
+        2. The resulting string is [trimmed](https://developer.mozilla.org/cs/docs/Web/JavaScript/Reference/Global_Objects/String/Trim), transformed based on the value of `settings.newlines` and sent to the current recipient or logged to the console depending on the current state of the batch instance (see [commands `(v)` and `(^)`](#miscellaneous).
   4. Pop the [token](#tokenization) from the array and repeat the process until the array is empty.
 
 ## Name locking
@@ -194,7 +194,6 @@ The following additional methods and variables are available during JavaScript e
   * `settings` - The settings object contains the following values:
     * `freezeOnError` (`false`) – The `(freeze)` [command](#commands) is executed each time the `err()` function is called.
     * `newlines` – The newlines object contains the following values:
-        * `trimmed` (`true`) – When true, the outgoing messages are trimmed, e.g. white spaces and newline characters at the beginning and at the end of the string are removed.
         * `TeXLike` (`false`) – When true:
           * One or more whitespace characters or a newline along with any adjacent whitespace characters are replaced with a single space.
           * Two or more newlines surrounded by newlines and whitespaces are replaced with two newline characters signifying a paragraph.
