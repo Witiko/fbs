@@ -1084,19 +1084,20 @@
       });
     } function globalSyncSend(name, data, callback) {
     
-      var done = false;
+      var ready = false,
+          received = false;
       
       // We wait for global received events
       listenForGlobal(qualifiedName + receivedPrefix + name, function() {
-        if(done) return;
-        done = true;
+        if(received) return;
+        received = true;
         callback();
       });
       
       // We wait for global ready events
       listenForGlobal(qualifiedName + readyPrefix + name, function() {
-        if(done) return;
-        done = true;
+        if(ready || received) return;
+        ready = true;
         globalAsyncSend(qualifiedName + dataPrefix + name, data);
       });      
       
@@ -1104,24 +1105,26 @@
       globalAsyncSend(qualifiedName + dataPrefix + name, data);
       
       return function() {
-        done = true;
+        ready = true;
+        received = true;
       };
       
     } function localSyncSend(name, data, callback) {
     
-      var done = false;
+      var ready = false,
+          received = false;
     
       // We wait for local received events
       listenForLocal(qualifiedName + receivedPrefix + name, function() {
-        if(done) return;
-        done = true;
+        if(received) return;
+        received = true;
         callback();
       });
       
       // We wait for local ready events
       listenForLocal(qualifiedName + readyPrefix + name, function() {
-        if(done) return;
-        done = true;
+        if(ready || received) return;
+        ready = true;
         localAsyncSend(qualifiedName + dataPrefix + name, data);
       });
       
@@ -1129,7 +1132,8 @@
       localAsyncSend(qualifiedName + dataPrefix + name, data);
       
       return function() {
-        done = true;
+        ready = true;
+        received = true;
       };
       
     } function waitFor(name) {
