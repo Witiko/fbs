@@ -1285,11 +1285,16 @@
   }
   
   function curl(url) {
-    var http = GM_xmlhttpRequest({synchronous: true, method: "GET", url: url});
-    if(http.status == 200) {
-      return http.responseText;
-    } else {
-      warn.call(this, "Failed to download resource from the url", url, " (" + http.status + " – " + http.statusText + ").");
+    try {
+      var http = GM_xmlhttpRequest({synchronous: true, method: "GET", url: url});
+      if(http.status == 200) {
+        return http.responseText;
+      } else {
+        warn.call(this, "Failed to download resource from the url", url, " (" + http.status + " – " + http.statusText + ").");
+        return "";
+      }
+    } catch(e) {
+      err.call(this, "Failed to download resource from the url", url, ": ", e);
       return "";
     }
   }
