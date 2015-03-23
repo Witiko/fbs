@@ -1064,10 +1064,10 @@
           return getCurrName.call(context);
         }, getLastReplyName: function() {
           return getLastReplyName.call(context);
-        }
+        }, window: global
       })) {
         try {
-          var retVal = eval(str);
+          var retVal = (function() { return eval(str) }).call(global);
           return retVal === undefined ? "" :  newlines.encode(String(retVal));
         } catch(e) {
           err.call(context, "The following exception has been caught while executing the expression", str, ":", e);
@@ -1262,8 +1262,8 @@
                 warn.apply(that, [handle + ":"].concat([].slice.call(arguments, 0)));
               }, err: function() {
                 err.apply(that, [handle + ":"].concat([].slice.call(arguments, 0)));
-              }
-            }) eval(script);
+              }, window: global
+            }) (function() { eval(script) }).call(global);
           } else {
             parseAndExecute.call(this, script, true, handle);
           }
