@@ -651,11 +651,11 @@
           $b: $b,
           $i: $i ? ($i.settings ? $i : proto(protoSettings($b), $i)) : protoSettings($b),
           log: !handle ? log : function() {
-            log.apply(that, [handle + ":"].concat([].slice.call(arguments, 0)));
+            log.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
           }, warn: !handle ? warn : function() {
-            warn.apply(that, [handle + ":"].concat([].slice.call(arguments, 0)));
+            warn.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
           }, err: !handle ? err : function() {
-            err.apply(that, [handle + ":"].concat([].slice.call(arguments, 0)));
+            err.apply(this, [handle + ":"].concat([].slice.call(arguments, 0)));
           }
         });
       })();
