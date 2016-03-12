@@ -410,7 +410,7 @@
     var input = document.createElement("div"), highlighter,
         DEFAULT_TEXT = "(v)", hidden = true;
      
-    if(!localStorage.curr) {
+    if(!localStorage.max) {
       localStorage.curr = localStorage.max = 0;
       localStorage[0] = DEFAULT_TEXT;
     } input.innerHTML = localStorage[localStorage.curr];
