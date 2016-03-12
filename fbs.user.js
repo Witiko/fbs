@@ -86,7 +86,7 @@
           time:        false
         }
       }, notification = (window.Notification || function() { /* A dummy notification constructor */ }),
-      ctx = new (window.audioContext || window.webkitAudioContext || (function() {
+      ctx = new (window.AudioContext || (function() {
         // A dummy audioContext object
         this.createOscillator = function() {
           return {
@@ -98,8 +98,8 @@
         };
         this.connect          = function() {};
         this.disconnect       = function() {};
-        this.noteOn           = function() {};
-        this.noteOff          = function() {};
+        this.start            = function() {};
+        this.stop             = function() {};
       })), MESSAGE_SELECTOR = 'textarea[name="message_body"]',
       PLACEHOLDER_CLASS = "DOMControl_placeholder",
       REPLY_SELECTOR = "div[role=log] li.webMessengerMessageGroup",
@@ -584,11 +584,11 @@
   
   function beep() {
     var osc = ctx.createOscillator();
-      osc.type = 3;
-      osc.connect(ctx.destination);
-      osc.noteOn(0);
+    osc.type = 3;
+    osc.connect(ctx.destination);
+    osc.start(0);
     setTimeout(function() {
-      osc.noteOff(0);
+      osc.stop(0);
       osc.disconnect();
     }, 500);
   }
